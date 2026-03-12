@@ -26,6 +26,8 @@ module cli_parser
         "packmol -i input.inp -o output.pdb" // new_line('a')
 
     private
+    public :: parse_command
+    public :: get_filename
     public :: parse_command_line_args
 
 contains

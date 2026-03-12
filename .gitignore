@@ -1,4 +1,6 @@
 build/
+build-debug/
+.pixi/
 CMakeFiles/
 *.mod
 *.o

@@ -41,6 +41,22 @@ or direclty as CLI command using [uv](https://docs.astral.sh/uv/)
 uvx packmol < inp.pack
 ```
 
+## Development and testing with pixi
+
+The recommended entrypoint for local development in this repository is [`pixi`](https://pixi.sh).
+
+```bash
+pixi run inventory
+pixi run build
+pixi run test-unit
+pixi run test-component
+pixi run test-gencan
+pixi run test-regression
+pixi run test-all
+```
+
+These tasks configure the CMake/Ninja build, generate the procedure inventory under `tests/inventory/`, and run the layered Fortran baseline tests used for the C++ migration.
+
 ### Manual compilation
 
 1. Download the `.tar.gz` or `.zip` files of the latest version from: https://github.com/m3g/packmol/releases
@@ -91,6 +107,5 @@ L Martinez, R Andrade, EG Birgin, JM Martinez, Packmol: A package for building i
 
 JM Martinez, L Martinez, Packing optimization for the automated generation of complex system's initial configurations for molecular dynamics and docking. Journal of Computational Chemistry, 24, 819-825, 2003.
 (https://doi.org/10.1002/jcc.10216)
-
 
 

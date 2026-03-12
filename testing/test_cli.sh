@@ -101,11 +101,10 @@ if ! [ -x "$uname" ] ; then
 fi
 
 os=$("$uname")
-# OSX does not ship with GNU gawk by default so we need to use what they provide
-if [ "Darwin" == "$os" ] ; then
+# Prefer gawk when available, otherwise fall back to awk.
+gawk=$(which gawk 2>/dev/null || true)
+if ! [ -x "$gawk" ] ; then
 	gawk=$(which awk)
-else
-	gawk=$(which gawk)
 fi
 
 if ! [ -x "$gawk" ] ; then

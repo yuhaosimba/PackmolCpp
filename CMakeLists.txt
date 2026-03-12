@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(packmol Fortran)
 
+include(CTest)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
@@ -12,8 +13,7 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
     )
 endif()
 
-# Build the executable
-add_executable(packmol
+set(PACKMOL_CORE_SOURCES
        src/exit_codes.f90
        src/cenmass.f90
        src/gencan.f
@@ -33,7 +33,6 @@ add_executable(packmol
        src/gwalls.f90
        src/comprest.f90
        src/comparegrad.f90
-       app/packmol.f90
        src/polartocart.f90
        src/resetcells.f90
        src/tobar.f90
@@ -56,5 +55,25 @@ add_executable(packmol
        src/input.f90
 )
 
+add_library(packmol_core STATIC
+    ${PACKMOL_CORE_SOURCES}
+)
+
+target_include_directories(packmol_core PUBLIC
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+# Build the executable
+add_executable(packmol
+       app/packmol.f90
+)
+
+target_link_libraries(packmol PRIVATE packmol_core)
+
 # Installation directive
 install(TARGETS packmol DESTINATION bin)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

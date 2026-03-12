@@ -1,0 +1,6 @@
+filetype pdb
+tolerance 2.0
+output output.pdb
+structure /home/ylj/应用/packmol/PackmolC-/tests/fixtures/minimal_structure.pdb
+  number 1
+end structure

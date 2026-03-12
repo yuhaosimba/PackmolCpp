@@ -1,6 +1,7 @@
 #!/bin/bash
 #
 echo "Starting to run test.sh script... "
+packmol_bin="${PACKMOL_BIN:-../packmol}"
 # Julia executable path:
 julia_exe=`which julia`
 echo "Output of which_julia: $julia_exe"
@@ -13,7 +14,7 @@ fi
 echo "Julia executable: $julia_exe"
 # Run the tests
 echo "Running runtests.jl script."
-$julia_exe runtests.jl ./input_files/water_box.inp \
+$julia_exe runtests.jl -packmol "$packmol_bin" ./input_files/water_box.inp \
                   ./input_files/ieee_signaling.inp \
                   ./input_files/mixture.inp \
                   ./input_files/mixture_pbc.inp \
@@ -32,11 +33,11 @@ $julia_exe runtests.jl ./input_files/water_box.inp \
                   ./input_files/only_one_fixed.inp
 
 # check if output files are properly generated in a failed run
-./test_failed.sh ./input_files/water_box_failed.inp packmol.log "FORCED" 
-./test_failed.sh ./input_files/protein_outside_pbc_error.inp packmol.log "outside"
+PACKMOL_BIN="$packmol_bin" ./test_failed.sh ./input_files/water_box_failed.inp packmol.log "FORCED" 
+PACKMOL_BIN="$packmol_bin" ./test_failed.sh ./input_files/protein_outside_pbc_error.inp packmol.log "outside"
 
 # Test connectivity
-./test_connectivity.sh 
+PACKMOL_BIN="$packmol_bin" ./test_connectivity.sh 
 
 # Test command-line interface
-./test_cli.sh ../packmol
+./test_cli.sh "$packmol_bin"

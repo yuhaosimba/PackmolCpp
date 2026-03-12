@@ -9,11 +9,12 @@
 # Example: ./test.sh "water_box.inp" "packmol.log" "FORCED"
 #
 echo "Running failed packing test ... "
+packmol_bin="${PACKMOL_BIN:-../packmol}"
 if ! [ -f $1 ]; then
     echo "Error: input file not found: $1"
     exit 1
 fi
-../packmol < $1 > $2
+"$packmol_bin" < $1 > $2
 if ! [ -f $2 ]; then
     echo "Error: Log file not generated: $2"
     exit 1

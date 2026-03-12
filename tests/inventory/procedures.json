@@ -1,0 +1,683 @@
+[
+  {
+    "procedure": "printbar",
+    "source_file": "src/ahestetic.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "setcell",
+    "source_file": "src/cell_indexing.f90",
+    "kind": "subroutine",
+    "category": "unit",
+    "dependencies": [],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "icell_to_cell",
+    "source_file": "src/cell_indexing.f90",
+    "kind": "subroutine",
+    "category": "unit",
+    "dependencies": [
+      "compute_data",
+      "pbc"
+    ],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "cenmass",
+    "source_file": "src/cenmass.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "checkpoint",
+    "source_file": "src/checkpoint.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "parse_command",
+    "source_file": "src/cli_parser.f90",
+    "kind": "function",
+    "category": "component",
+    "dependencies": [
+      "exit_codes",
+      "input",
+      "sizes"
+    ],
+    "test_type": "subprocess",
+    "shim_required": true
+  },
+  {
+    "procedure": "get_filename",
+    "source_file": "src/cli_parser.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [
+      "exit_codes",
+      "input",
+      "sizes"
+    ],
+    "test_type": "subprocess",
+    "shim_required": true
+  },
+  {
+    "procedure": "parse_command_line_args",
+    "source_file": "src/cli_parser.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [
+      "exit_codes",
+      "input",
+      "sizes"
+    ],
+    "test_type": "subprocess",
+    "shim_required": true
+  },
+  {
+    "procedure": "comparegrad",
+    "source_file": "src/comparegrad.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "discret",
+    "source_file": "src/comparegrad.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [
+      "sizes"
+    ],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "comprest",
+    "source_file": "src/comprest.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "computef",
+    "source_file": "src/computef.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "computeg",
+    "source_file": "src/computeg.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "flash1",
+    "source_file": "src/flashsort.f90",
+    "kind": "subroutine",
+    "category": "unit",
+    "dependencies": [],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "evalal",
+    "source_file": "src/gencan.f",
+    "kind": "subroutine",
+    "category": "optimizer-internal",
+    "dependencies": [],
+    "test_type": "smoke-or-component",
+    "shim_required": true
+  },
+  {
+    "procedure": "evalnal",
+    "source_file": "src/gencan.f",
+    "kind": "subroutine",
+    "category": "optimizer-internal",
+    "dependencies": [],
+    "test_type": "smoke-or-component",
+    "shim_required": true
+  },
+  {
+    "procedure": "evalhd",
+    "source_file": "src/gencan.f",
+    "kind": "subroutine",
+    "category": "optimizer-internal",
+    "dependencies": [],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "easygencan",
+    "source_file": "src/gencan.f",
+    "kind": "subroutine",
+    "category": "optimizer-internal",
+    "dependencies": [],
+    "test_type": "smoke-or-component",
+    "shim_required": true
+  },
+  {
+    "procedure": "gencan",
+    "source_file": "src/gencan.f",
+    "kind": "subroutine",
+    "category": "optimizer-internal",
+    "dependencies": [],
+    "test_type": "smoke-or-component",
+    "shim_required": true
+  },
+  {
+    "procedure": "spgls",
+    "source_file": "src/gencan.f",
+    "kind": "subroutine",
+    "category": "optimizer-internal",
+    "dependencies": [],
+    "test_type": "smoke-or-component",
+    "shim_required": true
+  },
+  {
+    "procedure": "cg",
+    "source_file": "src/gencan.f",
+    "kind": "subroutine",
+    "category": "optimizer-internal",
+    "dependencies": [],
+    "test_type": "smoke-or-component",
+    "shim_required": true
+  },
+  {
+    "procedure": "tnls",
+    "source_file": "src/gencan.f",
+    "kind": "subroutine",
+    "category": "optimizer-internal",
+    "dependencies": [],
+    "test_type": "smoke-or-component",
+    "shim_required": true
+  },
+  {
+    "procedure": "calcf",
+    "source_file": "src/gencan.f",
+    "kind": "subroutine",
+    "category": "optimizer-internal",
+    "dependencies": [],
+    "test_type": "smoke-or-component",
+    "shim_required": true
+  },
+  {
+    "procedure": "calcg",
+    "source_file": "src/gencan.f",
+    "kind": "subroutine",
+    "category": "optimizer-internal",
+    "dependencies": [],
+    "test_type": "smoke-or-component",
+    "shim_required": true
+  },
+  {
+    "procedure": "calcgdiff",
+    "source_file": "src/gencan.f",
+    "kind": "subroutine",
+    "category": "optimizer-internal",
+    "dependencies": [],
+    "test_type": "smoke-or-component",
+    "shim_required": true
+  },
+  {
+    "procedure": "calchd",
+    "source_file": "src/gencan.f",
+    "kind": "subroutine",
+    "category": "optimizer-internal",
+    "dependencies": [],
+    "test_type": "smoke-or-component",
+    "shim_required": true
+  },
+  {
+    "procedure": "calchddiff",
+    "source_file": "src/gencan.f",
+    "kind": "subroutine",
+    "category": "optimizer-internal",
+    "dependencies": [],
+    "test_type": "smoke-or-component",
+    "shim_required": true
+  },
+  {
+    "procedure": "shrink",
+    "source_file": "src/gencan.f",
+    "kind": "subroutine",
+    "category": "optimizer-internal",
+    "dependencies": [],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "expand",
+    "source_file": "src/gencan.f",
+    "kind": "subroutine",
+    "category": "optimizer-internal",
+    "dependencies": [],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "evalnaldiff",
+    "source_file": "src/gencan.f",
+    "kind": "subroutine",
+    "category": "optimizer-internal",
+    "dependencies": [],
+    "test_type": "smoke-or-component",
+    "shim_required": true
+  },
+  {
+    "procedure": "gp_ieee_signal1",
+    "source_file": "src/gencan_ieee_signal_routines.f90",
+    "kind": "subroutine",
+    "category": "unit",
+    "dependencies": [],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "gp_ieee_signal2",
+    "source_file": "src/gencan_ieee_signal_routines.f90",
+    "kind": "subroutine",
+    "category": "unit",
+    "dependencies": [],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "getinp",
+    "source_file": "src/getinp.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "failopen",
+    "source_file": "src/getinp.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [
+      "compute_data",
+      "exit_codes",
+      "input",
+      "pbc",
+      "sizes",
+      "usegencan"
+    ],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "setrnum",
+    "source_file": "src/getinp.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [
+      "compute_data",
+      "exit_codes",
+      "input",
+      "pbc",
+      "sizes",
+      "usegencan"
+    ],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "setcon",
+    "source_file": "src/getinp.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [
+      "compute_data",
+      "exit_codes",
+      "input",
+      "pbc",
+      "sizes",
+      "usegencan"
+    ],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "getkeywords",
+    "source_file": "src/getinp.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [
+      "compute_data",
+      "exit_codes",
+      "input",
+      "pbc",
+      "sizes",
+      "usegencan"
+    ],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "chainc",
+    "source_file": "src/getinp.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [
+      "compute_data",
+      "exit_codes",
+      "input",
+      "pbc",
+      "sizes",
+      "usegencan"
+    ],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "clear",
+    "source_file": "src/getinp.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [
+      "compute_data",
+      "exit_codes",
+      "input",
+      "pbc",
+      "sizes",
+      "usegencan"
+    ],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "gparc",
+    "source_file": "src/gparc.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "gwalls",
+    "source_file": "src/gwalls.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "movebad",
+    "source_file": "src/heuristics.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "initial",
+    "source_file": "src/initial.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "jacobi",
+    "source_file": "src/jacobi.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "output",
+    "source_file": "src/output.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "i5hex",
+    "source_file": "src/output.f90",
+    "kind": "function",
+    "category": "unit",
+    "dependencies": [
+      "compute_data",
+      "exit_codes",
+      "input",
+      "pbc",
+      "sizes"
+    ],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "i4hex",
+    "source_file": "src/output.f90",
+    "kind": "function",
+    "category": "unit",
+    "dependencies": [
+      "compute_data",
+      "exit_codes",
+      "input",
+      "pbc",
+      "sizes"
+    ],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "write_connect",
+    "source_file": "src/output.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [
+      "compute_data",
+      "exit_codes",
+      "input",
+      "pbc",
+      "sizes"
+    ],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "pgencan",
+    "source_file": "src/pgencan.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "packmolprecision",
+    "source_file": "src/pgencan.f90",
+    "kind": "function",
+    "category": "component",
+    "dependencies": [
+      "compute_data",
+      "sizes",
+      "usegencan"
+    ],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "eulerrmat",
+    "source_file": "src/polartocart.f90",
+    "kind": "subroutine",
+    "category": "unit",
+    "dependencies": [],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "compcart",
+    "source_file": "src/polartocart.f90",
+    "kind": "subroutine",
+    "category": "unit",
+    "dependencies": [],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "eulerfixed",
+    "source_file": "src/polartocart.f90",
+    "kind": "subroutine",
+    "category": "unit",
+    "dependencies": [],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "init_random_number",
+    "source_file": "src/random.f90",
+    "kind": "subroutine",
+    "category": "unit",
+    "dependencies": [],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "seed_from_time",
+    "source_file": "src/random.f90",
+    "kind": "subroutine",
+    "category": "unit",
+    "dependencies": [],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "resetcells",
+    "source_file": "src/resetcells.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "restmol",
+    "source_file": "src/restmol.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "setsizes",
+    "source_file": "src/setsizes.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "strlength",
+    "source_file": "src/strlength.f90",
+    "kind": "function",
+    "category": "unit",
+    "dependencies": [],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "empty_char",
+    "source_file": "src/strlength.f90",
+    "kind": "function",
+    "category": "unit",
+    "dependencies": [
+      "sizes"
+    ],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "alltospace",
+    "source_file": "src/strlength.f90",
+    "kind": "function",
+    "category": "unit",
+    "dependencies": [
+      "sizes"
+    ],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "parse_spaces",
+    "source_file": "src/strlength.f90",
+    "kind": "subroutine",
+    "category": "unit",
+    "dependencies": [
+      "sizes"
+    ],
+    "test_type": "direct-unit",
+    "shim_required": false
+  },
+  {
+    "procedure": "swaptype",
+    "source_file": "src/swaptype.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "title",
+    "source_file": "src/title.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "tobar",
+    "source_file": "src/tobar.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
+    "procedure": "writesuccess",
+    "source_file": "src/writesuccess.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [],
+    "test_type": "component",
+    "shim_required": true
+  }
+]
