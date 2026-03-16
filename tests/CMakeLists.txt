@@ -35,10 +35,12 @@ add_test(
     COMMAND $<TARGET_FILE:test_getinp> ${CMAKE_SOURCE_DIR}/tests/fixtures/minimal_packmol.inp
 )
 set_tests_properties(test_getinp PROPERTIES LABELS "component")
+set_tests_properties(test_getinp PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/fixtures")
 packmol_add_test(test_discret component/test_discret.f90 component)
 packmol_add_test(test_resetcells component/test_resetcells.f90 component)
 packmol_add_test(test_packmolprecision component/test_packmolprecision.f90 component)
 packmol_add_test(test_core_evaluators component/test_core_evaluators.f90 component)
+packmol_add_test(test_gencan_cpp_bridge component/test_gencan_cpp_bridge.f90 component)
 packmol_add_test(test_constraint_kernels component/test_constraint_kernels.f90 component)
 packmol_add_test(test_restmol component/test_restmol.f90 component)
 packmol_add_test(test_swaptype component/test_swaptype.f90 component)
@@ -50,6 +52,7 @@ add_test(
     COMMAND $<TARGET_FILE:test_initial> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
 )
 set_tests_properties(test_initial PROPERTIES LABELS "component")
+set_tests_properties(test_initial PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/fixtures")
 
 add_executable(test_movebad component/test_movebad.f90)
 target_link_libraries(test_movebad PRIVATE packmol_test_support packmol_core)
@@ -58,6 +61,7 @@ add_test(
     COMMAND $<TARGET_FILE:test_movebad> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
 )
 set_tests_properties(test_movebad PROPERTIES LABELS "component")
+set_tests_properties(test_movebad PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/fixtures")
 packmol_add_test(test_write_connect component/test_write_connect.f90 component)
 
 add_executable(test_cli_parser_probe component/test_cli_parser_probe.f90)
@@ -135,13 +139,208 @@ add_test(
     COMMAND $<TARGET_FILE:test_setsizes> ${CMAKE_SOURCE_DIR}/tests/fixtures/minimal_packmol.inp
 )
 set_tests_properties(test_setsizes PROPERTIES LABELS "component")
+set_tests_properties(test_setsizes PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/fixtures")
 
 packmol_add_test(test_gencan_hessian_diff gencan/test_gencan_hessian_diff.f90 gencan)
 packmol_add_test(test_gencan_eval_wrappers gencan/test_gencan_eval_wrappers.f90 gencan)
 packmol_add_test(test_gencan_calchd gencan/test_gencan_calchd.f90 gencan)
+set_tests_properties(
+    test_gencan_wrappers
+    test_gencan_hessian_diff
+    test_gencan_eval_wrappers
+    test_gencan_calchd
+    PROPERTIES LABELS "gencan;gencan_wrappers"
+)
 packmol_add_test(test_spgls gencan/test_spgls.f90 gencan)
+packmol_add_test(test_spgls_limits gencan/test_spgls_limits.f90 gencan)
+add_executable(test_spgls_ab_probe gencan/test_spgls_ab_probe.f90)
+target_link_libraries(test_spgls_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_spgls_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_spgls_ab.py
+        $<TARGET_FILE:test_spgls_ab_probe>
+)
+set_tests_properties(test_spgls_ab PROPERTIES LABELS "gencan;gencan_ab")
 packmol_add_test(test_cg gencan/test_cg.f90 gencan)
+packmol_add_test(test_cg_limits gencan/test_cg_limits.f90 gencan)
+add_executable(test_cg_ab_probe gencan/test_cg_ab_probe.f90)
+target_link_libraries(test_cg_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_cg_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_cg_ab.py
+        $<TARGET_FILE:test_cg_ab_probe>
+)
+set_tests_properties(test_cg_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_cg_nqmp_ab_probe gencan/test_cg_nqmp_ab_probe.f90)
+target_link_libraries(test_cg_nqmp_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_cg_nqmp_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_cg_ab.py
+        $<TARGET_FILE:test_cg_nqmp_ab_probe>
+)
+set_tests_properties(test_cg_nqmp_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_cg_general_ab_probe gencan/test_cg_general_ab_probe.f90)
+target_link_libraries(test_cg_general_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_cg_general_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_cg_ab.py
+        $<TARGET_FILE:test_cg_general_ab_probe>
+)
+set_tests_properties(test_cg_general_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_cg_samep_ab_probe gencan/test_cg_samep_ab_probe.f90)
+target_link_libraries(test_cg_samep_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_cg_samep_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_cg_ab.py
+        $<TARGET_FILE:test_cg_samep_ab_probe>
+)
+set_tests_properties(test_cg_samep_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_cg_nqmpstop_ab_probe gencan/test_cg_nqmpstop_ab_probe.f90)
+target_link_libraries(test_cg_nqmpstop_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_cg_nqmpstop_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_cg_ab.py
+        $<TARGET_FILE:test_cg_nqmpstop_ab_probe>
+)
+set_tests_properties(test_cg_nqmpstop_ab PROPERTIES LABELS "gencan;gencan_ab")
 packmol_add_test(test_tnls gencan/test_tnls.f90 gencan)
+packmol_add_test(test_tnls_limits gencan/test_tnls_limits.f90 gencan)
+add_executable(test_tnls_ab_probe gencan/test_tnls_ab_probe.f90)
+target_link_libraries(test_tnls_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_tnls_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tnls_ab.py
+        $<TARGET_FILE:test_tnls_ab_probe>
+)
+set_tests_properties(test_tnls_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_tnls_nobound_ab_probe gencan/test_tnls_nobound_ab_probe.f90)
+target_link_libraries(test_tnls_nobound_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_tnls_nobound_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tnls_ab.py
+        $<TARGET_FILE:test_tnls_nobound_ab_probe>
+)
+set_tests_properties(test_tnls_nobound_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_tnls_nobound_interior_ab_probe gencan/test_tnls_nobound_interior_ab_probe.f90)
+target_link_libraries(test_tnls_nobound_interior_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_tnls_nobound_interior_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tnls_ab.py
+        $<TARGET_FILE:test_tnls_nobound_interior_ab_probe>
+)
+set_tests_properties(test_tnls_nobound_interior_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_tnls_nobound_interior_noextrap_ab_probe gencan/test_tnls_nobound_interior_noextrap_ab_probe.f90)
+target_link_libraries(test_tnls_nobound_interior_noextrap_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_tnls_nobound_interior_noextrap_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tnls_ab.py
+        $<TARGET_FILE:test_tnls_nobound_interior_noextrap_ab_probe>
+)
+set_tests_properties(test_tnls_nobound_interior_noextrap_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_tnls_nobound_interior_ex1_ab_probe gencan/test_tnls_nobound_interior_ex1_ab_probe.f90)
+target_link_libraries(test_tnls_nobound_interior_ex1_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_tnls_nobound_interior_ex1_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tnls_ab.py
+        $<TARGET_FILE:test_tnls_nobound_interior_ex1_ab_probe>
+)
+set_tests_properties(test_tnls_nobound_interior_ex1_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_tnls_nobound_interior_ex2_ab_probe gencan/test_tnls_nobound_interior_ex2_ab_probe.f90)
+target_link_libraries(test_tnls_nobound_interior_ex2_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_tnls_nobound_interior_ex2_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tnls_ab.py
+        $<TARGET_FILE:test_tnls_nobound_interior_ex2_ab_probe>
+)
+set_tests_properties(test_tnls_nobound_interior_ex2_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_tnls_nobound_interior_ex3_ab_probe gencan/test_tnls_nobound_interior_ex3_ab_probe.f90)
+target_link_libraries(test_tnls_nobound_interior_ex3_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_tnls_nobound_interior_ex3_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tnls_ab.py
+        $<TARGET_FILE:test_tnls_nobound_interior_ex3_ab_probe>
+)
+set_tests_properties(test_tnls_nobound_interior_ex3_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_tnls_nobound_interior_ex4_ab_probe gencan/test_tnls_nobound_interior_ex4_ab_probe.f90)
+target_link_libraries(test_tnls_nobound_interior_ex4_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_tnls_nobound_interior_ex4_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tnls_ab.py
+        $<TARGET_FILE:test_tnls_nobound_interior_ex4_ab_probe>
+)
+set_tests_properties(test_tnls_nobound_interior_ex4_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_tnls_nobound_extrap_ab_probe gencan/test_tnls_nobound_extrap_ab_probe.f90)
+target_link_libraries(test_tnls_nobound_extrap_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_tnls_nobound_extrap_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tnls_ab.py
+        $<TARGET_FILE:test_tnls_nobound_extrap_ab_probe>
+)
+set_tests_properties(test_tnls_nobound_extrap_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_tnls_nobound_mininterp2_ab_probe gencan/test_tnls_nobound_mininterp2_ab_probe.f90)
+target_link_libraries(test_tnls_nobound_mininterp2_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_tnls_nobound_mininterp2_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tnls_ab.py
+        $<TARGET_FILE:test_tnls_nobound_mininterp2_ab_probe>
+)
+set_tests_properties(test_tnls_nobound_mininterp2_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_tnls_extrap_ab_probe gencan/test_tnls_extrap_ab_probe.f90)
+target_link_libraries(test_tnls_extrap_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_tnls_extrap_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tnls_extrap_ab.py
+        $<TARGET_FILE:test_tnls_extrap_ab_probe>
+)
+set_tests_properties(test_tnls_extrap_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_tnls_interior_ab_probe gencan/test_tnls_interior_ab_probe.f90)
+target_link_libraries(test_tnls_interior_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_tnls_interior_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tnls_ab.py
+        $<TARGET_FILE:test_tnls_interior_ab_probe>
+)
+set_tests_properties(test_tnls_interior_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_tnls_interior_interp_ab_probe gencan/test_tnls_interior_interp_ab_probe.f90)
+target_link_libraries(test_tnls_interior_interp_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_tnls_interior_interp_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tnls_ab.py
+        $<TARGET_FILE:test_tnls_interior_interp_ab_probe>
+)
+set_tests_properties(test_tnls_interior_interp_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_tnls_interior_beta_extrap_ab_probe gencan/test_tnls_interior_beta_extrap_ab_probe.f90)
+target_link_libraries(test_tnls_interior_beta_extrap_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_tnls_interior_beta_extrap_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tnls_ab.py
+        $<TARGET_FILE:test_tnls_interior_beta_extrap_ab_probe>
+)
+set_tests_properties(test_tnls_interior_beta_extrap_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_tnls_gtype2_ab_probe gencan/test_tnls_gtype2_ab_probe.f90)
+target_link_libraries(test_tnls_gtype2_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_tnls_gtype2_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tnls_ab.py
+        $<TARGET_FILE:test_tnls_gtype2_ab_probe>
+)
+set_tests_properties(test_tnls_gtype2_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_gencan_runtime_driver_probe gencan/test_gencan_runtime_driver_probe.f90)
+target_link_libraries(test_gencan_runtime_driver_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_gencan_runtime_driver_probe
+    COMMAND $<TARGET_FILE:test_gencan_runtime_driver_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(test_gencan_runtime_driver_probe PROPERTIES LABELS "gencan")
+set_tests_properties(test_gencan_runtime_driver_probe PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/fixtures")
+add_executable(test_gencan_ab_probe gencan/test_gencan_ab_probe.f90)
+target_link_libraries(test_gencan_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_gencan_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_gencan_ab.py
+        $<TARGET_FILE:test_gencan_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(test_gencan_ab PROPERTIES LABELS "gencan;gencan_ab")
 packmol_add_test(test_easygencan gencan/test_easygencan.f90 gencan)
 packmol_add_test(test_gencan_driver gencan/test_gencan_driver.f90 gencan)
 
