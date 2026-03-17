@@ -427,19 +427,6 @@ extern "C" void packmol_calchddiff_fortran_c(
     int* inform
 );
 
-extern "C" void packmol_norm2s_fortran_c(
-    const int* n,
-    const double* x,
-    double* val
-);
-
-extern "C" void packmol_dot_fortran_c(
-    const int* n,
-    const double* x,
-    const double* y,
-    double* val
-);
-
 namespace {
 
 double dot_cpp_stable(const int n, const double* a, const double* b) {
@@ -478,30 +465,115 @@ double norm2sq_cpp_stable(const int n, const double* x) {
     return scale * scale * ssq;
 }
 
-double dot_fortran(const int n, const double* a, const double* b) {
+double dot_cpp_legacy(const int n, const double* a, const double* b) {
     double val = 0.0;
-    packmol_dot_fortran_c(&n, a, b, &val);
+    for (int i = 0; i < n; ++i) {
+        val += a[i] * b[i];
+    }
     return val;
 }
 
-double norm2_fortran(const int n, const double* x) {
-    double val = 0.0;
-    packmol_norm2s_fortran_c(&n, x, &val);
-    return val;
+double hsldnrm2_cpp_legacy(const int n, const double* x) {
+    constexpr double kZero = 0.0;
+    constexpr double kOne = 1.0;
+    constexpr double kCutlo = 8.232e-11;
+    constexpr double kCuthi = 1.304e19;
+    if (n <= 0) {
+        return kZero;
+    }
+
+    double sum = kZero;
+    int i = 0;
+    while (i < n) {
+        if (std::abs(x[i]) > kCutlo) {
+            break;
+        }
+        double xmax = kZero;
+        if (x[i] == kZero) {
+            i += 1;
+            continue;
+        }
+        if (std::abs(x[i]) > kCutlo) {
+            break;
+        }
+        xmax = std::abs(x[i]);
+        while (true) {
+            if (std::abs(x[i]) > kCutlo) {
+                break;
+            }
+            if (std::abs(x[i]) > xmax) {
+                sum = kOne + sum * (xmax / x[i]) * (xmax / x[i]);
+                xmax = std::abs(x[i]);
+            } else {
+                sum += (x[i] / xmax) * (x[i] / xmax);
+            }
+            i += 1;
+            if (i >= n) {
+                return xmax * std::sqrt(sum);
+            }
+        }
+        sum = (sum * xmax) * xmax;
+        const double hitest = kCuthi / static_cast<double>(n);
+        for (int j = i; j < n; ++j) {
+            if (std::abs(x[j]) >= hitest) {
+                i = j;
+                sum = (sum / x[i]) / x[i];
+                break;
+            }
+            sum += x[j] * x[j];
+            if (j == n - 1) {
+                return std::sqrt(sum);
+            }
+        }
+    }
+
+    const double hitest = kCuthi / static_cast<double>(n);
+    for (int j = i; j < n; ++j) {
+        if (std::abs(x[j]) >= hitest) {
+            i = j;
+            sum = (sum / x[i]) / x[i];
+            double xmax = std::abs(x[i]);
+            i += 1;
+            while (i < n) {
+                if (std::abs(x[i]) <= kCutlo) {
+                    if (std::abs(x[i]) > xmax) {
+                        sum = kOne + sum * (xmax / x[i]) * (xmax / x[i]);
+                        xmax = std::abs(x[i]);
+                    } else {
+                        sum += (x[i] / xmax) * (x[i] / xmax);
+                    }
+                    i += 1;
+                    continue;
+                }
+                sum = (sum * xmax) * xmax;
+                break;
+            }
+            if (i >= n) {
+                return xmax * std::sqrt(sum);
+            }
+            for (int k = i; k < n; ++k) {
+                sum += x[k] * x[k];
+            }
+            return std::sqrt(sum);
+        }
+        sum += x[j] * x[j];
+    }
+    return std::sqrt(sum);
 }
 
 double dot_kernel(const int n, const double* a, const double* b) {
     if (use_cpp_numeric_kernel()) {
         return dot_cpp_stable(n, a, b);
     }
-    return dot_fortran(n, a, b);
+    return dot_cpp_legacy(n, a, b);
 }
 
 double norm2_kernel(const int n, const double* x) {
     if (use_cpp_numeric_kernel()) {
         return norm2sq_cpp_stable(n, x);
     }
-    return norm2_fortran(n, x);
+    const double nrm = hsldnrm2_cpp_legacy(n, x);
+    return nrm * nrm;
 }
 
 void vec_copy(const int n, const double* src, double* dst) {

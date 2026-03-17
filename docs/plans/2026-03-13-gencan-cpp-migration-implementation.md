@@ -925,7 +925,7 @@ Numeric kernel promotion increment (default C++ `dot/norm2`):
 - Promoted `PACKMOL_GENCAN_NUMERIC_CPP` policy to default-on in C++ bridge:
   - `dot_kernel`/`norm2_kernel` now use C++ stable implementations by default.
   - emergency rollback remains available:
-    - `PACKMOL_GENCAN_NUMERIC_CPP=0|false|no` forces legacy Fortran numeric wrappers.
+    - `PACKMOL_GENCAN_NUMERIC_CPP=0|false|no` forces legacy-compatible C++ accumulation mode.
 - Scope:
   - affects only numeric utility dispatch (`dot`/`norm2`) used by migrated C++ GENCAN paths.
   - no interface or I/O behavior changes.
@@ -945,7 +945,7 @@ Runtime AB gate stabilization (fixture parity + controlled fallback reasons):
 - For parity scripts only:
   - `tests/gencan/check_gencan_ab.py`
   - `tests/gencan/check_gencan_entry_stop_ab.py`
-  - now pin `PACKMOL_GENCAN_NUMERIC_CPP=0` inside probe subprocess env to keep semantic-comparison gates stable.
+  - now pin `PACKMOL_GENCAN_NUMERIC_CPP=0` (legacy-compatible C++ numeric mode) inside probe subprocess env to keep semantic-comparison gates stable.
 - Fallback closure gate remains strict:
   - `tests/gencan/check_gencan_ab_no_fallback.py` continues enforcing zero fallback markers on fixture A/B runs.
 
