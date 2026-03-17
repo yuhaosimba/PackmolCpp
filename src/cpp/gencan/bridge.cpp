@@ -371,34 +371,6 @@ extern "C" void packmol_packmolprecision_fortran_c(
     bool* ok
 );
 
-extern "C" void packmol_calcg_fortran_c(
-    const int* nind,
-    const int* ind,
-    double* x,
-    const int* n,
-    const double* xc,
-    const int* m,
-    const double* lambda,
-    const double* rho,
-    double* g,
-    int* inform
-);
-
-extern "C" void packmol_calcgdiff_fortran_c(
-    const int* nind,
-    const int* ind,
-    double* x,
-    const int* n,
-    const double* xc,
-    const int* m,
-    const double* lambda,
-    const double* rho,
-    double* g,
-    const double* sterel,
-    const double* steabs,
-    int* inform
-);
-
 extern "C" void packmol_calchd_fortran_c(
     const int* nind,
     const int* ind,
@@ -681,6 +653,25 @@ void calcg_cpp_reduced(
     shrink_inplace(nind_val, ind, g);
 }
 
+void eval_gradient_full_cpp(
+    const int* n,
+    double* x,
+    const int* m,
+    const double* lambda,
+    const double* rho,
+    const int* gtype,
+    double* g,
+    const double* sterel,
+    const double* steabs,
+    int* inform
+) {
+    if (*gtype == 0) {
+        packmol_evalnal_fortran_c(n, x, m, lambda, rho, g, inform);
+    } else {
+        packmol_evalnaldiff_fortran_c(n, x, m, lambda, rho, g, sterel, steabs, inform);
+    }
+}
+
 void calchddiff_cpp_reduced(
     const int* nind,
     const int* ind,
@@ -717,11 +708,7 @@ void calchddiff_cpp_reduced(
         xtmp[i] = x[i] + step * d[i];
     }
 
-    if (*gtype == 0) {
-        packmol_calcg_fortran_c(nind, ind, xtmp, n, x, m, lambda, rho, hd, inform);
-    } else {
-        packmol_calcgdiff_fortran_c(nind, ind, xtmp, n, x, m, lambda, rho, hd, sterel, steabs, inform);
-    }
+    calcg_cpp_reduced(nind, ind, xtmp, n, x, m, lambda, rho, gtype, hd, sterel, steabs, inform);
     if (*inform < 0) {
         return;
     }
@@ -2257,7 +2244,6 @@ extern "C" void packmol_gencan_gencan_bridge(
         case GencanImplMode::kCpp:
         case GencanImplMode::kAb: {
             const int n_val = *n;
-            const int m_val = *m;
             const char* fallback_reason = "cpp_nonterminal_continue";
             std::vector<double> fallback_x_seed;
             bool fallback_x_seed_valid = false;
@@ -2282,11 +2268,9 @@ extern "C" void packmol_gencan_gencan_bridge(
             std::vector<double> x_try(n_val);
             std::vector<double> g_try(n_val, 0.0);
             std::vector<int> ind_try(n_val);
-            std::vector<int> ind_all(n_val);
             for (int i = 0; i < n_val; ++i) {
                 x_try[i] = std::max(l[i], std::min(x[i], u[i]));
                 ind_try[i] = i + 1;
-                ind_all[i] = i + 1;
             }
 
             int eval_flag = 0;
@@ -2344,17 +2328,9 @@ extern "C" void packmol_gencan_gencan_bridge(
             }
 
             int grad_flag = 0;
-            if (*gtype == 0) {
-                packmol_calcg_fortran_c(
-                    n, ind_all.data(), x_try.data(), &n_val, x_try.data(), &m_val,
-                    lambda, rho, g_try.data(), &grad_flag
-                );
-            } else {
-                packmol_calcgdiff_fortran_c(
-                    n, ind_all.data(), x_try.data(), &n_val, x_try.data(), &m_val,
-                    lambda, rho, g_try.data(), sterel, steabs, &grad_flag
-                );
-            }
+            eval_gradient_full_cpp(
+                n, x_try.data(), m, lambda, rho, gtype, g_try.data(), sterel, steabs, &grad_flag
+            );
 
             if (grad_flag < 0) {
                 *f = f_try;
@@ -2538,17 +2514,9 @@ extern "C" void packmol_gencan_gencan_bridge(
                     }
 
                     int grad_after_spg = 0;
-                    if (*gtype == 0) {
-                        packmol_calcg_fortran_c(
-                            n, ind_all.data(), x_work.data(), &n_val, x_work.data(), &m_val,
-                            lambda, rho, g_work.data(), &grad_after_spg
-                        );
-                    } else {
-                        packmol_calcgdiff_fortran_c(
-                            n, ind_all.data(), x_work.data(), &n_val, x_work.data(), &m_val,
-                            lambda, rho, g_work.data(), sterel, steabs, &grad_after_spg
-                        );
-                    }
+                    eval_gradient_full_cpp(
+                        n, x_work.data(), m, lambda, rho, gtype, g_work.data(), sterel, steabs, &grad_after_spg
+                    );
                     gcnt_work += 1;
 
                     if (grad_after_spg < 0) {
@@ -2700,17 +2668,9 @@ extern "C" void packmol_gencan_gencan_bridge(
                         }
 
                         int grad_after_retry = 0;
-                        if (*gtype == 0) {
-                            packmol_calcg_fortran_c(
-                                n, ind_all.data(), x_work.data(), &n_val, x_work.data(), &m_val,
-                                lambda, rho, g_work.data(), &grad_after_retry
-                            );
-                        } else {
-                            packmol_calcgdiff_fortran_c(
-                                n, ind_all.data(), x_work.data(), &n_val, x_work.data(), &m_val,
-                                lambda, rho, g_work.data(), sterel, steabs, &grad_after_retry
-                            );
-                        }
+                        eval_gradient_full_cpp(
+                            n, x_work.data(), m, lambda, rho, gtype, g_work.data(), sterel, steabs, &grad_after_retry
+                        );
                         gcnt_work += 1;
 
                         if (grad_after_retry < 0) {
@@ -3083,17 +3043,9 @@ extern "C" void packmol_gencan_gencan_bridge(
                                     }
 
                                     int grad_after_spg = 0;
-                                    if (*gtype == 0) {
-                                        packmol_calcg_fortran_c(
-                                            n, ind_all.data(), x_work.data(), &n_val, x_work.data(), &m_val,
-                                            lambda, rho, g_work.data(), &grad_after_spg
-                                        );
-                                    } else {
-                                        packmol_calcgdiff_fortran_c(
-                                            n, ind_all.data(), x_work.data(), &n_val, x_work.data(), &m_val,
-                                            lambda, rho, g_work.data(), sterel, steabs, &grad_after_spg
-                                        );
-                                    }
+                                    eval_gradient_full_cpp(
+                                        n, x_work.data(), m, lambda, rho, gtype, g_work.data(), sterel, steabs, &grad_after_spg
+                                    );
                                     gcnt_work += 1;
 
                                     if (grad_after_spg < 0) {
@@ -3199,17 +3151,9 @@ extern "C" void packmol_gencan_gencan_bridge(
                                     }
 
                                     int grad_after_retry = 0;
-                                    if (*gtype == 0) {
-                                        packmol_calcg_fortran_c(
-                                            n, ind_all.data(), x_work.data(), &n_val, x_work.data(), &m_val,
-                                            lambda, rho, g_work.data(), &grad_after_retry
-                                        );
-                                    } else {
-                                        packmol_calcgdiff_fortran_c(
-                                            n, ind_all.data(), x_work.data(), &n_val, x_work.data(), &m_val,
-                                            lambda, rho, g_work.data(), sterel, steabs, &grad_after_retry
-                                        );
-                                    }
+                                    eval_gradient_full_cpp(
+                                        n, x_work.data(), m, lambda, rho, gtype, g_work.data(), sterel, steabs, &grad_after_retry
+                                    );
                                     gcnt_work += 1;
 
                                     if (grad_after_retry < 0) {

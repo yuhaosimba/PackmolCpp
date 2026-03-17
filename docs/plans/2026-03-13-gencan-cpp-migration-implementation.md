@@ -1086,3 +1086,12 @@ Reduced-wrapper migration increment (`calchd` reduced-space plumbing in C++ for 
   - keeps current repository semantics where `evalhd` path is effectively a no-op under default callbacks.
 - Scope:
   - removes `calchd` Fortran reduced-wrapper entry from C++ CG core loop.
+
+Gradient-wrapper migration increment (bridge-side full/reduced eval dispatch in C++):
+
+- Removed direct usage of `packmol_calcg_fortran_c/packmol_calcgdiff_fortran_c` inside C++ bridge:
+  - added `eval_gradient_full_cpp(...)` for full-space gradient callbacks (`evalnal/evalnaldiff` C bindings).
+  - `calchddiff_cpp_reduced(...)` now reuses `calcg_cpp_reduced(...)` instead of calling Fortran reduced wrappers.
+  - GENCAN main C++ path post-step gradient refresh sites now call `eval_gradient_full_cpp(...)`.
+- Scope:
+  - further narrows Fortran dependency surface to callback-level APIs and non-migrated fallback paths.
