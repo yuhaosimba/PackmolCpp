@@ -1050,3 +1050,12 @@ SPG retry rollout gates:
   - `test_gencan_ab_no_fallback_spg_retry_draft`
     - env: `PACKMOL_GENCAN_SPG_POST_RETRY=1`
     - closure check ensures no fallback marker appears on current AB fixture corpus.
+
+Reduced-wrapper migration increment (`calcf` in C++):
+
+- Replaced `packmol_calcf_fortran_c` calls inside `tnls_cpp_subset` with a C++ reduced-space wrapper:
+  - `calcf_cpp_reduced(...)` now performs `complete -> expand -> evalal -> shrink` in-bridge.
+  - objective evaluation callback remains `packmol_evalal_fortran_c` (interface unchanged).
+- Scope:
+  - removes one high-frequency Fortran reduced-wrapper dependency from the C++ TN line-search path.
+  - no changes to Fortran mode behavior or public interfaces.

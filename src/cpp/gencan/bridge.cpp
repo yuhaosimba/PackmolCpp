@@ -349,19 +349,6 @@ extern "C" void packmol_packmolprecision_fortran_c(
     bool* ok
 );
 
-extern "C" void packmol_calcf_fortran_c(
-    const int* nind,
-    const int* ind,
-    double* x,
-    const int* n,
-    const double* xc,
-    const int* m,
-    const double* lambda,
-    const double* rho,
-    double* f,
-    int* inform
-);
-
 extern "C" void packmol_calcg_fortran_c(
     const int* nind,
     const int* ind,
@@ -620,6 +607,28 @@ bool same_point_relative(
     return true;
 }
 
+void calcf_cpp_reduced(
+    const int* nind,
+    const int* ind,
+    double* x,
+    const int* n,
+    const double* xc,
+    const int* m,
+    const double* lambda,
+    const double* rho,
+    double* f,
+    int* inform
+) {
+    const int nind_val = *nind;
+    const int n_val = *n;
+    for (int i = nind_val; i < n_val; ++i) {
+        x[i] = xc[i];
+    }
+    expand_inplace(nind_val, ind, x);
+    packmol_evalal_fortran_c(n, x, m, lambda, rho, f, inform);
+    shrink_inplace(nind_val, ind, x);
+}
+
 void spgls_cpp(
     const int* n,
     double* x,
@@ -865,7 +874,7 @@ bool tnls_cpp_subset(
             }
 
             double ftmp = 0.0;
-            packmol_calcf_fortran_c(nind, ind, xtmp, &n_val, x, &m_val, lambda, rho, &ftmp, inform);
+            calcf_cpp_reduced(nind, ind, xtmp, &n_val, x, &m_val, lambda, rho, &ftmp, inform);
             *fcnt += 1;
             if (*inform < 0) {
                 *f = fbext;
@@ -903,7 +912,7 @@ bool tnls_cpp_subset(
     }
 
     double fplus = 0.0;
-    packmol_calcf_fortran_c(nind, ind, xplus, n, x, m, lambda, rho, &fplus, inform);
+    calcf_cpp_reduced(nind, ind, xplus, n, x, m, lambda, rho, &fplus, inform);
     *fcnt += 1;
     if (*inform < 0) {
         return true;
@@ -995,7 +1004,7 @@ bool tnls_cpp_subset(
         }
 
         vec_trial_point(nind_val, x, alpha, d, xplus);
-        packmol_calcf_fortran_c(nind, ind, xplus, &n_val, x, &m_val, lambda, rho, &fplus, inform);
+        calcf_cpp_reduced(nind, ind, xplus, &n_val, x, &m_val, lambda, rho, &fplus, inform);
         *fcnt += 1;
         if (*inform < 0) {
             return true;
