@@ -1010,3 +1010,13 @@ Fallback seed-state draft hook (default-off):
 - Purpose:
   - enable controlled A/B experiments that reduce restart-loss at fallback boundaries,
     as a stepping stone toward full in-bridge continuation.
+
+TN post-nonterminal local-retry draft (default-off):
+
+- Added optional in-bridge retry loop for TN post-nonterminal cases:
+  - env: `PACKMOL_GENCAN_TN_POST_RETRY_SPG=<N>` (clamped to `1..16`, default `0`).
+  - when enabled and TN post-step remains nonterminal, bridge performs up to `N` extra SPG retries
+    with gradient refresh and standard post-step termination checks before falling back.
+- Default behavior remains unchanged when unset (`0`).
+- Intent:
+  - shrink `tn_post_nonterminal` fallback incidence under controlled rollout while keeping Fortran fallback as safety net.
