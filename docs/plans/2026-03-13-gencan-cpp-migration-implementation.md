@@ -981,3 +981,11 @@ TN post-nonterminal diagnostics enrichment (no behavior change):
   - fields: `line_inform`, `post_inform`, `nind`, `f_before`, `f_after`, `gpsupn`, `gpeucn2`.
 - Purpose:
   - capture the exact nonterminal envelope at fallback handoff so the next closure step can replace fallback branch-by-branch with measurable acceptance criteria.
+
+SPG post-nonterminal diagnostics enrichment (no behavior change):
+
+- Added matching structured debug payload for `spg_post_nonterminal` fallback:
+  - marker: `[gencan-cpp-fallback-spg-post]`
+  - fields: `line_inform`, `post_inform`, `nind`, `f_before`, `f_after`, `gpsupn`, `gpeucn2`.
+- Purpose:
+  - align SPG/TN fallback observability so both remaining continuation-style fallback points can be closed under the same metric-driven workflow.

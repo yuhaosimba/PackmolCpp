@@ -1955,6 +1955,14 @@ extern "C" void packmol_gencan_gencan_bridge(
             double tn_post_f_after = 0.0;
             double tn_post_gpsupn = 0.0;
             double tn_post_gpeucn2 = 0.0;
+            bool spg_post_debug_captured = false;
+            int spg_post_line_inform = 0;
+            int spg_post_post_inform = -1;
+            int spg_post_nind = 0;
+            double spg_post_f_before = 0.0;
+            double spg_post_f_after = 0.0;
+            double spg_post_gpsupn = 0.0;
+            double spg_post_gpeucn2 = 0.0;
 
             std::vector<double> x_try(n_val);
             std::vector<double> g_try(n_val, 0.0);
@@ -2348,6 +2356,15 @@ extern "C" void packmol_gencan_gencan_bridge(
                     } else if (post_inform < 0 && fcnt_work >= *maxfc) {
                         post_inform = 8;
                     }
+
+                    spg_post_debug_captured = true;
+                    spg_post_line_inform = ls_inform;
+                    spg_post_post_inform = post_inform;
+                    spg_post_nind = nind_after;
+                    spg_post_f_before = f_try;
+                    spg_post_f_after = f_work;
+                    spg_post_gpsupn = gpsupn_after;
+                    spg_post_gpeucn2 = gpeucn2_after;
 
                     if (post_inform >= 0) {
                         *f = f_work;
@@ -2787,6 +2804,19 @@ extern "C" void packmol_gencan_gencan_bridge(
                         tn_post_f_after,
                         tn_post_gpsupn,
                         tn_post_gpeucn2
+                    );
+                }
+                if (std::string(fallback_reason) == "spg_post_nonterminal" && spg_post_debug_captured) {
+                    std::fprintf(
+                        stderr,
+                        "[gencan-cpp-fallback-spg-post] line_inform=%d post_inform=%d nind=%d f_before=%.16e f_after=%.16e gpsupn=%.16e gpeucn2=%.16e\n",
+                        spg_post_line_inform,
+                        spg_post_post_inform,
+                        spg_post_nind,
+                        spg_post_f_before,
+                        spg_post_f_after,
+                        spg_post_gpsupn,
+                        spg_post_gpeucn2
                     );
                 }
             }
