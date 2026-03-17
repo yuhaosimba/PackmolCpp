@@ -896,7 +896,6 @@ Fallback observability increment (no behavior change):
   - `spg_post_nonterminal`
   - `tn_post_nonterminal`
   - `tn_no_free_variables`
-  - `entry_grad_flag_nonzero`
   - default `cpp_nonterminal_continue`
 
 Verification snapshot (fallback observability):
@@ -968,6 +967,12 @@ Entry gradient flag parity fix:
   - negative flags still terminate immediately as error returns.
 - Effect:
   - removes a residual C++-only semantic branch (`grad_flag > 0` forced fallback) while preserving existing error handling.
+
+Entry grad fallback-branch removal:
+
+- After promoting entry handling to `grad_flag >= 0`, the legacy fallback branch
+  tagged as `entry_grad_flag_nonzero` became unreachable.
+- Removed that fallback assignment from bridge control flow.
 
 TN post-nonterminal diagnostics enrichment (no behavior change):
 

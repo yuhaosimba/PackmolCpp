@@ -2767,8 +2767,6 @@ extern "C" void packmol_gencan_gencan_bridge(
                         fallback_reason = "tn_no_free_variables";
                     }
                 }
-            } else {
-                fallback_reason = "entry_grad_flag_nonzero";
             }
 
             if (gencan_debug_enabled()) {
