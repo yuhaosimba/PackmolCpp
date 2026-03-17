@@ -2049,7 +2049,7 @@ extern "C" void packmol_gencan_gencan_bridge(
                 return;
             }
 
-            if (grad_flag == 0) {
+            if (grad_flag >= 0) {
                 double gpsupn_try = 0.0;
                 double gpeucn2_try = 0.0;
                 double gieucn2_try = 0.0;

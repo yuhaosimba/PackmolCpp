@@ -960,3 +960,11 @@ TN fallback shadow instrumentation increment (debug-only):
   - includes mode, pre/post inform, counter deltas, objective delta, and max state deltas (`x`, `g`).
 - Purpose:
   - provide concrete data to guide next-step elimination of the TN post-nonterminal fallback without changing default runtime behavior.
+
+Entry gradient flag parity fix:
+
+- Updated C++ `gencan` entry flow to match Fortran semantics for non-negative gradient flags:
+  - `grad_flag >= 0` continues into projected-gradient and branch-selection logic.
+  - negative flags still terminate immediately as error returns.
+- Effect:
+  - removes a residual C++-only semantic branch (`grad_flag > 0` forced fallback) while preserving existing error handling.
