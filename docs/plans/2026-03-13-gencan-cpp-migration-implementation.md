@@ -1030,3 +1030,23 @@ TN retry rollout gates:
   - `test_gencan_ab_no_fallback_tn_retry_draft`
     - env: `PACKMOL_GENCAN_TN_POST_RETRY_SPG=1`
     - closure check ensures no fallback marker appears on current AB fixture corpus.
+
+SPG post-nonterminal local-retry draft (default-off):
+
+- Added optional in-bridge retry loop for SPG post-nonterminal cases:
+  - env: `PACKMOL_GENCAN_SPG_POST_RETRY=<N>` (clamped to `1..16`, default `0`).
+  - when enabled and SPG post-step remains nonterminal, bridge performs up to `N` extra SPG retries
+    with gradient refresh and standard post-step termination checks before falling back.
+- Default behavior remains unchanged when unset (`0`).
+- Intent:
+  - shrink `spg_post_nonterminal` fallback incidence under controlled rollout while keeping Fortran fallback as safety net.
+
+SPG retry rollout gates:
+
+- Added draft CI gates for retry mode:
+  - `test_gencan_ab_spg_retry_draft`
+    - env: `PACKMOL_GENCAN_SPG_POST_RETRY=1`
+    - parity check against fortran/cpp/ab outputs.
+  - `test_gencan_ab_no_fallback_spg_retry_draft`
+    - env: `PACKMOL_GENCAN_SPG_POST_RETRY=1`
+    - closure check ensures no fallback marker appears on current AB fixture corpus.

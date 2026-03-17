@@ -122,6 +122,22 @@ int tn_post_retry_spg_steps() {
     return static_cast<int>(value);
 }
 
+int spg_post_retry_steps() {
+    const char* env = std::getenv("PACKMOL_GENCAN_SPG_POST_RETRY");
+    if (env == nullptr || env[0] == '\0') {
+        return 0;
+    }
+    char* end = nullptr;
+    long value = std::strtol(env, &end, 10);
+    if (end == env || value <= 0) {
+        return 0;
+    }
+    if (value > 16) {
+        return 16;
+    }
+    return static_cast<int>(value);
+}
+
 void shrink_inplace(const int nind, const int* ind, double* v) {
     for (int i = 1; i <= nind; ++i) {
         const int indi = ind[i - 1];
@@ -2409,7 +2425,7 @@ extern "C" void packmol_gencan_gencan_bridge(
 
                     bool precision_after_spg = false;
                     packmol_packmolprecision_fortran_c(n, x_work.data(), &precision_after_spg);
-                    const int post_inform = evaluate_post_step_inform_cpp(
+                    int post_inform = evaluate_post_step_inform_cpp(
                         precision_after_spg,
                         ls_inform,
                         gpeucn2_after,
@@ -2429,6 +2445,147 @@ extern "C" void packmol_gencan_gencan_bridge(
                         fcnt_work,
                         *maxfc
                     );
+
+                    int retry_budget = spg_post_retry_steps();
+                    while (post_inform < 0 && retry_budget > 0) {
+                        retry_budget -= 1;
+                        spgiter_work += 1;
+                        const double xnorm_for_spg = std::sqrt(norm2_kernel(n_val, x_work.data()));
+                        double lamspg_retry = std::max(1.0, xnorm_for_spg) / std::sqrt(std::max(gpeucn2_after, 1.0e-30));
+                        lamspg_retry = std::min(*lspgma, std::max(*lspgmi, lamspg_retry));
+
+                        const double f_before_retry = f_work;
+                        int spg_line_inform = 0;
+                        const int fcnt_prev_retry = fcnt_work;
+                        spgls_cpp(
+                            n, x_work.data(), m, lambda, rho, &f_work, g_work.data(), l, u, &lamspg_retry,
+                            nint, mininterp, fmin, maxfc, &fcnt_work, &spg_line_inform, xtrial_work.data(),
+                            d_work.data(), gamma, sigma1, sigma2, epsrel, epsabs
+                        );
+                        spgfcnt_work += (fcnt_work - fcnt_prev_retry);
+
+                        if (spg_line_inform < 0) {
+                            *f = f_work;
+                            for (int i = 0; i < n_val; ++i) {
+                                x[i] = x_work[i];
+                                g[i] = g_work[i];
+                            }
+                            *iter = iter_work;
+                            *fcnt = fcnt_work;
+                            *gcnt = gcnt_work;
+                            *cgcnt = cgcnt_work;
+                            *spgiter = spgiter_work;
+                            *spgfcnt = spgfcnt_work;
+                            *tniter = tniter_work;
+                            *tnfcnt = tnfcnt_work;
+                            *tnstpcnt = tnstpcnt_work;
+                            *tnintcnt = tnintcnt_work;
+                            *tnexgcnt = tnexgcnt_work;
+                            *tnexbcnt = tnexbcnt_work;
+                            *tnintfe = tnintfe_work;
+                            *tnexgfe = tnexgfe_work;
+                            *tnexbfe = tnexbfe_work;
+                            *inform = spg_line_inform;
+                            return;
+                        }
+
+                        int grad_after_retry = 0;
+                        if (*gtype == 0) {
+                            packmol_calcg_fortran_c(
+                                n, ind_all.data(), x_work.data(), &n_val, x_work.data(), &m_val,
+                                lambda, rho, g_work.data(), &grad_after_retry
+                            );
+                        } else {
+                            packmol_calcgdiff_fortran_c(
+                                n, ind_all.data(), x_work.data(), &n_val, x_work.data(), &m_val,
+                                lambda, rho, g_work.data(), sterel, steabs, &grad_after_retry
+                            );
+                        }
+                        gcnt_work += 1;
+
+                        if (grad_after_retry < 0) {
+                            *f = f_work;
+                            for (int i = 0; i < n_val; ++i) {
+                                x[i] = x_work[i];
+                                g[i] = g_work[i];
+                            }
+                            *iter = iter_work;
+                            *fcnt = fcnt_work;
+                            *gcnt = gcnt_work;
+                            *cgcnt = cgcnt_work;
+                            *spgiter = spgiter_work;
+                            *spgfcnt = spgfcnt_work;
+                            *tniter = tniter_work;
+                            *tnfcnt = tnfcnt_work;
+                            *tnstpcnt = tnstpcnt_work;
+                            *tnintcnt = tnintcnt_work;
+                            *tnexgcnt = tnexgcnt_work;
+                            *tnexbcnt = tnexbcnt_work;
+                            *tnintfe = tnintfe_work;
+                            *tnexgfe = tnexgfe_work;
+                            *tnexbfe = tnexbfe_work;
+                            *inform = grad_after_retry;
+                            return;
+                        }
+
+                        gpsupn_after = 0.0;
+                        gpeucn2_after = 0.0;
+                        nind_after = 0;
+                        for (int i = 0; i < n_val; ++i) {
+                            if (x_work[i] <= l[i] + std::max((*epsrel) * std::abs(l[i]), *epsabs)) {
+                                x_work[i] = l[i];
+                            } else if (x_work[i] >= u[i] - std::max((*epsrel) * std::abs(u[i]), *epsabs)) {
+                                x_work[i] = u[i];
+                            }
+                            s_work[i] = x_work[i] - x_prev[i];
+                            y_work[i] = g_work[i] - g_prev[i];
+                            const double xpg = x_work[i] - g_work[i];
+                            const double gpi = std::min(u[i], std::max(l[i], xpg)) - x_work[i];
+                            gpsupn_after = std::max(gpsupn_after, std::abs(gpi));
+                            gpeucn2_after += gpi * gpi;
+                            if (x_work[i] > l[i] && x_work[i] < u[i]) {
+                                ind_work[nind_after] = i + 1;
+                                nind_after += 1;
+                            }
+                        }
+
+                        bool precision_after_retry = false;
+                        packmol_packmolprecision_fortran_c(n, x_work.data(), &precision_after_retry);
+                        ls_inform = spg_line_inform;
+                        post_inform = evaluate_post_step_inform_cpp(
+                            precision_after_retry,
+                            ls_inform,
+                            gpeucn2_after,
+                            *epsgpen,
+                            gpsupn_after,
+                            *epsgpsn,
+                            f_before_retry,
+                            f_work,
+                            *epsnfp,
+                            *maxitnfp,
+                            *infabs,
+                            lastgpns,
+                            *maxitngp,
+                            *fmin,
+                            iter_work,
+                            *maxit,
+                            fcnt_work,
+                            *maxfc
+                        );
+
+                        if (gencan_debug_enabled()) {
+                            std::fprintf(
+                                stderr,
+                                "[gencan-cpp-spg-retry] step_left=%d line_inform=%d post_inform=%d f=%.16e gpsupn=%.16e gpeucn2=%.16e\n",
+                                retry_budget,
+                                ls_inform,
+                                post_inform,
+                                f_work,
+                                gpsupn_after,
+                                gpeucn2_after
+                            );
+                        }
+                    }
 
                     spg_post_debug_captured = true;
                     spg_post_line_inform = ls_inform;
