@@ -56,6 +56,9 @@ program test_gencan_driver
 
    call assert_equal_int(inform, 0, "gencan should return a non-error status on the empty toy problem")
    call assert_close_real8(f, 0.d0, 1.d-12, "gencan should keep the objective at zero")
+   call assert_true(iter >= 0, "gencan should return a non-negative iteration counter")
+   call assert_true(fcnt >= 0, "gencan should return a non-negative function-evaluation counter")
+   call assert_true(gcnt >= 0, "gencan should return a non-negative gradient-evaluation counter")
 
    deallocate(gxcar)
 end program test_gencan_driver

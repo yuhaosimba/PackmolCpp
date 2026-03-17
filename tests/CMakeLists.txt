@@ -325,6 +325,36 @@ add_test(
         $<TARGET_FILE:test_tnls_gtype2_ab_probe>
 )
 set_tests_properties(test_tnls_gtype2_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_easygencan_ab_probe gencan/test_easygencan_ab_probe.f90)
+target_link_libraries(test_easygencan_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_easygencan_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_easygencan_ab.py
+        $<TARGET_FILE:test_easygencan_ab_probe>
+)
+set_tests_properties(test_easygencan_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_test(
+    NAME test_easygencan_ab_draft
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_easygencan_ab.py
+        $<TARGET_FILE:test_easygencan_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(
+    test_easygencan_ab_draft
+    PROPERTIES
+        LABELS "gencan;gencan_ab;gencan_draft"
+        ENVIRONMENT "PACKMOL_GENCAN_EASY_CPP_DRAFT=1"
+)
+add_test(
+    NAME test_easygencan_ab_fallback
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_easygencan_ab.py
+        $<TARGET_FILE:test_easygencan_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(
+    test_easygencan_ab_fallback
+    PROPERTIES
+        LABELS "gencan;gencan_ab;gencan_fallback"
+        ENVIRONMENT "PACKMOL_GENCAN_EASY_CPP_DRAFT=0"
+)
 add_executable(test_gencan_runtime_driver_probe gencan/test_gencan_runtime_driver_probe.f90)
 target_link_libraries(test_gencan_runtime_driver_probe PRIVATE packmol_test_support packmol_core)
 add_test(
@@ -341,6 +371,79 @@ add_test(
         $<TARGET_FILE:test_gencan_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
 )
 set_tests_properties(test_gencan_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_test(
+    NAME test_gencan_ab_no_fallback
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_gencan_ab_no_fallback.py
+        $<TARGET_FILE:test_gencan_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(
+    test_gencan_ab_no_fallback
+    PROPERTIES
+        LABELS "gencan;gencan_ab;gencan_closure"
+)
+add_executable(test_gencan_entry_stop_ab_probe gencan/test_gencan_entry_stop_ab_probe.f90)
+target_link_libraries(test_gencan_entry_stop_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_gencan_entry_stop_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_gencan_entry_stop_ab.py
+        $<TARGET_FILE:test_gencan_entry_stop_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(test_gencan_entry_stop_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_gencan_entry_stop_gtype2_ab_probe gencan/test_gencan_entry_stop_gtype2_ab_probe.f90)
+target_link_libraries(test_gencan_entry_stop_gtype2_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_gencan_entry_stop_gtype2_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_gencan_entry_stop_ab.py
+        $<TARGET_FILE:test_gencan_entry_stop_gtype2_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(test_gencan_entry_stop_gtype2_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_gencan_entry_stop_inform2_ab_probe gencan/test_gencan_entry_stop_inform2_ab_probe.f90)
+target_link_libraries(test_gencan_entry_stop_inform2_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_gencan_entry_stop_inform2_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_gencan_entry_stop_ab.py
+        $<TARGET_FILE:test_gencan_entry_stop_inform2_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(test_gencan_entry_stop_inform2_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_executable(test_gencan_entry_stop_inform3_ab_probe gencan/test_gencan_entry_stop_inform3_ab_probe.f90)
+target_link_libraries(test_gencan_entry_stop_inform3_ab_probe PRIVATE packmol_test_support packmol_core)
+add_test(
+    NAME test_gencan_entry_stop_inform3_ab
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_gencan_entry_stop_ab.py
+        $<TARGET_FILE:test_gencan_entry_stop_inform3_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(test_gencan_entry_stop_inform3_ab PROPERTIES LABELS "gencan;gencan_ab")
+add_test(
+    NAME test_gencan_ab_cg_draft
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_gencan_ab.py
+        $<TARGET_FILE:test_gencan_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(
+    test_gencan_ab_cg_draft
+    PROPERTIES
+        LABELS "gencan;gencan_ab;gencan_draft"
+)
+add_test(
+    NAME test_gencan_tn_draft_smoke
+    COMMAND $<TARGET_FILE:test_gencan_runtime_driver_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(
+    test_gencan_tn_draft_smoke
+    PROPERTIES
+        LABELS "gencan;gencan_draft"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/fixtures"
+        ENVIRONMENT "PACKMOL_GENCAN_IMPL=cpp"
+)
+add_test(
+    NAME test_gencan_ab_tn_draft
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_gencan_ab.py
+        $<TARGET_FILE:test_gencan_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(
+    test_gencan_ab_tn_draft
+    PROPERTIES
+        LABELS "gencan;gencan_ab;gencan_draft"
+)
 packmol_add_test(test_easygencan gencan/test_easygencan.f90 gencan)
 packmol_add_test(test_gencan_driver gencan/test_gencan_driver.f90 gencan)
 

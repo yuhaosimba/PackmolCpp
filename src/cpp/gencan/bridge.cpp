@@ -2,10 +2,14 @@
 #include <cmath>
 #include <cctype>
 #include <cstddef>
+#include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <vector>
 
 namespace {
+
+thread_local int g_cg_active_call_id = 0;
 
 enum class GencanImplMode {
     kFortran = 0,
@@ -36,6 +40,140 @@ GencanImplMode parse_impl_mode() {
 GencanImplMode active_impl_mode() {
     static const GencanImplMode mode = parse_impl_mode();
     return mode;
+}
+
+bool gencan_debug_enabled() {
+    const char* env = std::getenv("PACKMOL_GENCAN_DEBUG");
+    if (env == nullptr) {
+        return false;
+    }
+    std::string value(env);
+    for (char& ch : value) {
+        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    }
+    return value == "1" || value == "true" || value == "on" || value == "yes";
+}
+
+bool cg_shadow_compare_enabled() {
+    const char* env = std::getenv("PACKMOL_GENCAN_CG_SHADOW");
+    if (env == nullptr) {
+        return false;
+    }
+    std::string value(env);
+    for (char& ch : value) {
+        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    }
+    return value == "1" || value == "true" || value == "on" || value == "yes";
+}
+
+bool cg_dtw_relax_enabled() {
+    const char* env = std::getenv("PACKMOL_GENCAN_CG_DTW_RELAX");
+    if (env == nullptr) {
+        return true;
+    }
+    return env[0] == '1' || env[0] == 't' || env[0] == 'T' || env[0] == 'y' || env[0] == 'Y';
+}
+
+bool use_cpp_numeric_kernel() {
+    const char* env = std::getenv("PACKMOL_GENCAN_NUMERIC_CPP");
+    if (env == nullptr) {
+        return true;
+    }
+    return !(env[0] == '0' || env[0] == 'f' || env[0] == 'F' || env[0] == 'n' || env[0] == 'N');
+}
+
+bool use_easy_cpp_draft() {
+    const char* env = std::getenv("PACKMOL_GENCAN_EASY_CPP_DRAFT");
+    if (env == nullptr) {
+        return true;
+    }
+    return !(env[0] == '0' || env[0] == 'f' || env[0] == 'F' || env[0] == 'n' || env[0] == 'N');
+}
+
+void shrink_inplace(const int nind, const int* ind, double* v) {
+    for (int i = 1; i <= nind; ++i) {
+        const int indi = ind[i - 1];
+        if (i != indi) {
+            const double tmp = v[indi - 1];
+            v[indi - 1] = v[i - 1];
+            v[i - 1] = tmp;
+        }
+    }
+}
+
+void expand_inplace(const int nind, const int* ind, double* v) {
+    for (int i = nind; i >= 1; --i) {
+        const int indi = ind[i - 1];
+        if (i != indi) {
+            const double tmp = v[indi - 1];
+            v[indi - 1] = v[i - 1];
+            v[i - 1] = tmp;
+        }
+    }
+}
+
+void gp_ieee_signal1_cpp(
+    const double gpsupn,
+    double* acgeps,
+    double* bcgeps,
+    const double cgepsf,
+    const double cgepsi,
+    const double cggpnf
+) {
+    if (gpsupn > 0.0) {
+        *acgeps = std::log10(cgepsf / cgepsi) / std::log10(cggpnf / gpsupn);
+        *bcgeps = std::log10(cgepsi) - (*acgeps) * std::log10(gpsupn);
+    } else {
+        *acgeps = 0.0;
+        *bcgeps = cgepsf;
+    }
+}
+
+void gp_ieee_signal2_cpp(
+    int* cgmaxit,
+    const int nind,
+    const bool nearlyq,
+    const int ucgmaxit,
+    const int cgscre,
+    double* kappa,
+    const double gpeucn2,
+    const double gpeucn20,
+    const double epsgpen2,
+    const double epsgpsn,
+    double* cgeps,
+    const double acgeps,
+    const double bcgeps,
+    const double cgepsf,
+    const double cgepsi,
+    const double gpsupn,
+    const double gpsupn0
+) {
+    if (ucgmaxit <= 0) {
+        if (nearlyq) {
+            *cgmaxit = nind;
+        } else {
+            if (cgscre == 1) {
+                *kappa = std::log10(gpeucn2 / gpeucn20) / std::log10(epsgpen2 / gpeucn20);
+            } else {
+                *kappa = std::log10(gpsupn / gpsupn0) / std::log10(epsgpsn / gpsupn0);
+            }
+            *kappa = std::max(0.0, std::min(1.0, *kappa));
+            *cgmaxit = static_cast<int>(
+                (1.0 - *kappa) * std::max(1.0, 10.0 * std::log10(static_cast<double>(nind))) +
+                (*kappa) * static_cast<double>(nind)
+            );
+            *cgmaxit = std::min(20, *cgmaxit);
+        }
+    } else {
+        *cgmaxit = ucgmaxit;
+    }
+
+    if (cgscre == 1) {
+        *cgeps = std::sqrt(std::pow(10.0, acgeps * std::log10(gpeucn2) + bcgeps));
+    } else {
+        *cgeps = std::pow(10.0, acgeps * std::log10(gpsupn) + bcgeps);
+    }
+    *cgeps = std::max(cgepsf, std::min(cgepsi, *cgeps));
 }
 
 }  // namespace
@@ -95,6 +233,12 @@ extern "C" void packmol_evalal_fortran_c(
     int* flag
 );
 
+extern "C" void packmol_packmolprecision_fortran_c(
+    const int* n,
+    const double* x,
+    bool* ok
+);
+
 extern "C" void packmol_calcf_fortran_c(
     const int* nind,
     const int* ind,
@@ -136,7 +280,163 @@ extern "C" void packmol_calcgdiff_fortran_c(
     int* inform
 );
 
+extern "C" void packmol_calchd_fortran_c(
+    const int* nind,
+    const int* ind,
+    double* x,
+    double* d,
+    double* g,
+    const int* n,
+    const double* xc,
+    const int* m,
+    const double* lambda,
+    const double* rho,
+    double* hd,
+    double* xtmp,
+    const double* sterel,
+    const double* steabs,
+    int* inform
+);
+
+extern "C" void packmol_calchddiff_fortran_c(
+    const int* nind,
+    const int* ind,
+    double* x,
+    double* d,
+    double* g,
+    const int* n,
+    const double* xc,
+    const int* m,
+    const double* lambda,
+    const double* rho,
+    const int* gtype,
+    double* hd,
+    double* xtmp,
+    const double* sterel,
+    const double* steabs,
+    int* inform
+);
+
+extern "C" void packmol_norm2s_fortran_c(
+    const int* n,
+    const double* x,
+    double* val
+);
+
+extern "C" void packmol_dot_fortran_c(
+    const int* n,
+    const double* x,
+    const double* y,
+    double* val
+);
+
 namespace {
+
+double dot_cpp_stable(const int n, const double* a, const double* b) {
+    double sum = 0.0;
+    double c = 0.0;
+    for (int i = 0; i < n; ++i) {
+        const double prod = a[i] * b[i];
+        const double y = prod - c;
+        const double t = sum + y;
+        c = (t - sum) - y;
+        sum = t;
+    }
+    return sum;
+}
+
+double norm2sq_cpp_stable(const int n, const double* x) {
+    double scale = 0.0;
+    double ssq = 1.0;
+    for (int i = 0; i < n; ++i) {
+        const double ax = std::abs(x[i]);
+        if (ax == 0.0) {
+            continue;
+        }
+        if (scale < ax) {
+            const double r = (scale == 0.0) ? 0.0 : (scale / ax);
+            ssq = 1.0 + ssq * r * r;
+            scale = ax;
+        } else {
+            const double r = ax / scale;
+            ssq += r * r;
+        }
+    }
+    if (scale == 0.0) {
+        return 0.0;
+    }
+    return scale * scale * ssq;
+}
+
+double dot_fortran(const int n, const double* a, const double* b) {
+    double val = 0.0;
+    packmol_dot_fortran_c(&n, a, b, &val);
+    return val;
+}
+
+double norm2_fortran(const int n, const double* x) {
+    double val = 0.0;
+    packmol_norm2s_fortran_c(&n, x, &val);
+    return val;
+}
+
+double dot_kernel(const int n, const double* a, const double* b) {
+    if (use_cpp_numeric_kernel()) {
+        return dot_cpp_stable(n, a, b);
+    }
+    return dot_fortran(n, a, b);
+}
+
+double norm2_kernel(const int n, const double* x) {
+    if (use_cpp_numeric_kernel()) {
+        return norm2sq_cpp_stable(n, x);
+    }
+    return norm2_fortran(n, x);
+}
+
+void vec_copy(const int n, const double* src, double* dst) {
+    for (int i = 0; i < n; ++i) {
+        dst[i] = src[i];
+    }
+}
+
+void vec_trial_point(const int n, const double* x, const double alpha, const double* d, double* out) {
+    for (int i = 0; i < n; ++i) {
+        out[i] = x[i] + alpha * d[i];
+    }
+}
+
+bool same_step_relative(
+    const int n,
+    const double alpha,
+    const double* d,
+    const double* ref,
+    const double epsrel,
+    const double epsabs
+) {
+    for (int i = 0; i < n; ++i) {
+        if (std::abs(alpha * d[i]) > std::max(epsrel * std::abs(ref[i]), epsabs)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool same_point_relative(
+    const int n,
+    const double* a,
+    const double* b,
+    const double* ref,
+    const double epsrel,
+    const double epsabs
+) {
+    for (int i = 0; i < n; ++i) {
+        if (std::abs(a[i] - b[i]) > std::max(epsrel * std::abs(ref[i]), epsabs)) {
+            return false;
+        }
+    }
+    return true;
+}
 
 void spgls_cpp(
     const int* n,
@@ -177,10 +477,12 @@ void spgls_cpp(
 
     int interp = 0;
     double alpha = 1.0;
-    double gtd = 0.0;
     for (int i = 0; i < n_val; ++i) {
         xtrial[i] = std::min(u[i], std::max(l[i], x[i] - lamspg_val * g[i]));
         d[i] = xtrial[i] - x[i];
+    }
+    double gtd = 0.0;
+    for (int i = 0; i < n_val; ++i) {
         gtd += g[i] * d[i];
     }
 
@@ -194,18 +496,14 @@ void spgls_cpp(
     while (true) {
         if (ftrial <= f_ref + gamma_val * alpha * gtd) {
             *f = ftrial;
-            for (int i = 0; i < n_val; ++i) {
-                x[i] = xtrial[i];
-            }
+            vec_copy(n_val, xtrial, x);
             *inform = 0;
             return;
         }
 
         if (ftrial <= fmin_val) {
             *f = ftrial;
-            for (int i = 0; i < n_val; ++i) {
-                x[i] = xtrial[i];
-            }
+            vec_copy(n_val, xtrial, x);
             *inform = 4;
             return;
         }
@@ -213,9 +511,7 @@ void spgls_cpp(
         if (*fcnt >= *maxfc) {
             if (ftrial < f_ref) {
                 *f = ftrial;
-                for (int i = 0; i < n_val; ++i) {
-                    x[i] = xtrial[i];
-                }
+                vec_copy(n_val, xtrial, x);
             }
             *inform = 8;
             return;
@@ -237,9 +533,7 @@ void spgls_cpp(
             }
         }
 
-        for (int i = 0; i < n_val; ++i) {
-            xtrial[i] = x[i] + alpha * d[i];
-        }
+        vec_trial_point(n_val, x, alpha, d, xtrial);
 
         packmol_evalal_fortran_c(&n_val, xtrial, &m_val, lambda, rho, &ftrial, inform);
         *fcnt += 1;
@@ -247,19 +541,12 @@ void spgls_cpp(
             return;
         }
 
-        bool samep = true;
-        for (int i = 0; i < n_val; ++i) {
-            if (std::abs(alpha * d[i]) > std::max(epsrel_val * std::abs(x[i]), epsabs_val)) {
-                samep = false;
-            }
-        }
+        const bool samep = same_step_relative(n_val, alpha, d, x, epsrel_val, epsabs_val);
 
         if (interp >= *mininterp && samep) {
             if (ftrial < f_ref) {
                 *f = ftrial;
-                for (int i = 0; i < n_val; ++i) {
-                    x[i] = xtrial[i];
-                }
+                vec_copy(n_val, xtrial, x);
             }
             *inform = 6;
             return;
@@ -353,25 +640,19 @@ bool tnls_cpp_subset(
 
             if (fplus_ref <= *fmin) {
                 *f = fplus_ref;
-                for (int i = 0; i < nind_val; ++i) {
-                    x[i] = xplus[i];
-                }
+                vec_copy(nind_val, xplus, x);
                 return finish_extrapolation(fbext, 4, need_gradient_update);
             }
 
             if (*fcnt >= *maxfc) {
                 *f = fplus_ref;
-                for (int i = 0; i < nind_val; ++i) {
-                    x[i] = xplus[i];
-                }
+                vec_copy(nind_val, xplus, x);
                 return finish_extrapolation(fbext, 8, need_gradient_update);
             }
 
             if (extrap >= *maxextrap) {
                 *f = fplus_ref;
-                for (int i = 0; i < nind_val; ++i) {
-                    x[i] = xplus[i];
-                }
+                vec_copy(nind_val, xplus, x);
                 return finish_extrapolation(fbext, 7, need_gradient_update);
             }
 
@@ -380,9 +661,7 @@ bool tnls_cpp_subset(
                 atmp = *amax;
             }
 
-            for (int i = 0; i < nind_val; ++i) {
-                xtmp[i] = x[i] + atmp * d[i];
-            }
+            vec_trial_point(nind_val, x, atmp, d, xtmp);
             if (atmp == *amax && has_active_bound) {
                 const int idx = *rbdind - 1;
                 xtmp[idx] = (*rbdtype == 1) ? l[idx] : u[idx];
@@ -394,17 +673,11 @@ bool tnls_cpp_subset(
             }
 
             if (alpha_ref > *amax) {
-                bool samep = true;
-                for (int i = 0; i < nind_val; ++i) {
-                    if (std::abs(xtmp[i] - xplus[i]) > std::max(*epsrel * std::abs(xplus[i]), *epsabs)) {
-                        samep = false;
-                    }
-                }
+                const bool samep =
+                    same_point_relative(nind_val, xtmp, xplus, xplus, *epsrel, *epsabs);
                 if (samep) {
                     *f = fplus_ref;
-                    for (int i = 0; i < nind_val; ++i) {
-                        x[i] = xplus[i];
-                    }
+                    vec_copy(nind_val, xplus, x);
                     return finish_extrapolation(fbext, 0, need_gradient_update);
                 }
             }
@@ -414,9 +687,7 @@ bool tnls_cpp_subset(
             *fcnt += 1;
             if (*inform < 0) {
                 *f = fbext;
-                for (int i = 0; i < nind_val; ++i) {
-                    x[i] = xbext[i];
-                }
+                vec_copy(nind_val, xbext, x);
                 if (need_gradient_update && compute_gradient()) {
                     *exbcnt += 1;
                 }
@@ -427,19 +698,15 @@ bool tnls_cpp_subset(
             if (ftmp < fplus_ref) {
                 alpha_ref = atmp;
                 fplus_ref = ftmp;
-                for (int i = 0; i < nind_val; ++i) {
-                    xplus[i] = xtmp[i];
-                }
+                vec_copy(nind_val, xtmp, xplus);
                 extrap += 1;
             } else {
                 *f = fplus_ref;
-                for (int i = 0; i < nind_val; ++i) {
-                    x[i] = xplus[i];
-                }
+                vec_copy(nind_val, xplus, x);
                 return finish_extrapolation(fbext, 0, need_gradient_update);
             }
         }
-    };
+        };
 
     double gtd = 0.0;
     for (int i = 0; i < nind_val; ++i) {
@@ -447,9 +714,7 @@ bool tnls_cpp_subset(
     }
 
     double alpha = std::min(1.0, *amax);
-    for (int i = 0; i < nind_val; ++i) {
-        xplus[i] = x[i] + alpha * d[i];
-    }
+    vec_trial_point(nind_val, x, alpha, d, xplus);
     if (alpha == *amax && has_active_bound) {
         const int idx = *rbdind - 1;
         xplus[idx] = (*rbdtype == 1) ? l[idx] : u[idx];
@@ -484,9 +749,7 @@ bool tnls_cpp_subset(
             }
 
             *f = fplus;
-            for (int i = 0; i < nind_val; ++i) {
-                x[i] = xplus[i];
-            }
+            vec_copy(nind_val, xplus, x);
             *inform = 0;
             return true;
         }
@@ -503,9 +766,7 @@ bool tnls_cpp_subset(
     while (true) {
         if (fplus <= *fmin) {
             *f = fplus;
-            for (int i = 0; i < nind_val; ++i) {
-                x[i] = xplus[i];
-            }
+            vec_copy(nind_val, xplus, x);
             if (!compute_gradient()) {
                 return true;
             }
@@ -516,9 +777,7 @@ bool tnls_cpp_subset(
         if (*fcnt >= *maxfc) {
             if (fplus < f0) {
                 *f = fplus;
-                for (int i = 0; i < nind_val; ++i) {
-                    x[i] = xplus[i];
-                }
+                vec_copy(nind_val, xplus, x);
                 if (!compute_gradient()) {
                     return true;
                 }
@@ -529,9 +788,7 @@ bool tnls_cpp_subset(
 
         if (fplus <= *f + *gamma * alpha * gtd) {
             *f = fplus;
-            for (int i = 0; i < nind_val; ++i) {
-                x[i] = xplus[i];
-            }
+            vec_copy(nind_val, xplus, x);
             if (!compute_gradient()) {
                 return true;
             }
@@ -555,21 +812,14 @@ bool tnls_cpp_subset(
             }
         }
 
-        for (int i = 0; i < nind_val; ++i) {
-            xplus[i] = x[i] + alpha * d[i];
-        }
+        vec_trial_point(nind_val, x, alpha, d, xplus);
         packmol_calcf_fortran_c(nind, ind, xplus, &n_val, x, &m_val, lambda, rho, &fplus, inform);
         *fcnt += 1;
         if (*inform < 0) {
             return true;
         }
 
-        bool samep = true;
-        for (int i = 0; i < nind_val; ++i) {
-            if (std::abs(alpha * d[i]) > std::max(*epsrel * std::abs(x[i]), *epsabs)) {
-                samep = false;
-            }
-        }
+        const bool samep = same_step_relative(nind_val, alpha, d, x, *epsrel, *epsabs);
         if (interp >= *mininterp && samep) {
             *inform = 6;
             return true;
@@ -577,78 +827,354 @@ bool tnls_cpp_subset(
     }
 }
 
-bool cg_cpp_subset(
+void cg_cpp_full(
     const int* nind,
-    const double* x,
-    const double* g,
+    const int* ind,
+    const int* n,
+    double* x,
+    const int* m,
+    const double* lambda,
+    const double* rho,
+    double* g,
     const double* delta,
     const double* l,
     const double* u,
+    const double* eps,
     const double* epsnqmp,
     const int* maxitnqmp,
+    const int* maxit,
+    const bool* nearlyq,
+    const int* gtype,
+    const int* htvtype,
+    const int* trtype,
+    const int* iprint,
     const double* theta,
+    const double* sterel,
+    const double* steabs,
     const double* epsrel,
     const double* epsabs,
+    const double* infabs,
     double* s,
+    double* w,
+    double* y,
+    double* r,
+    double* d,
+    double* sprev,
     int* iter,
     int* rbdtype,
     int* rbdind,
     int* inform
 ) {
     const int nind_val = *nind;
-    double gnorm2 = 0.0;
+    (void)iprint;
+    const bool debug = gencan_debug_enabled();
+    *rbdtype = 0;
+    *rbdind = 0;
+    auto norm2 = [&](const double* v) { return norm2_kernel(nind_val, v); };
+    auto dot = [&](const double* a, const double* b) { return dot_kernel(nind_val, a, b); };
+
+    const double gnorm2 = norm2(g);
+
+    *iter = 0;
+    int itnqmp = 0;
+    double qprev = *infabs;
+    double bestprog = 0.0;
+
     for (int i = 0; i < nind_val; ++i) {
-        gnorm2 += g[i] * g[i];
+        s[i] = 0.0;
+        r[i] = g[i];
     }
 
-    // First CG C++ slice: exact zero-gradient early convergence.
-    if (gnorm2 <= 1.0e-16) {
-        for (int i = 0; i < nind_val; ++i) {
-            s[i] = 0.0;
+    double q = 0.0;
+    double snorm2 = 0.0;
+    double rnorm2 = gnorm2;
+    double dnorm2 = 0.0;
+    double dtr = 0.0;
+    double alpha = 0.0;
+    double dtw = 0.0;
+    double rnorm2prev = rnorm2;
+
+    while (true) {
+        if (rnorm2 <= 1.0e-16 ||
+            (((rnorm2 <= (*eps) * (*eps) * gnorm2) || (rnorm2 <= 1.0e-10 && *iter != 0)) &&
+             *iter >= 4)) {
+            *rbdtype = 0;
+            *rbdind = 0;
+            *inform = 0;
+            return;
         }
-        *iter = 0;
-        *rbdtype = 0;
-        *rbdind = 0;
-        *inform = 0;
-        return true;
-    }
 
-    // Second CG C++ slice: guarded no-progress-stop regime.
-    // Keep this intentionally narrow to preserve parity while incrementally replacing CG.
-    if (*maxitnqmp <= 1 && *epsnqmp >= 1.0 && *theta > 0.0) {
-        const double alpha = 0.3 * (*theta);
-        for (int i = 0; i < nind_val; ++i) {
-            double si = -alpha * g[i];
-            const double low = l[i] - x[i];
-            const double high = u[i] - x[i];
-            s[i] = std::max(low, std::min(si, high));
+        if (*iter >= std::max(4, *maxit)) {
+            *rbdtype = 0;
+            *rbdind = 0;
+            *inform = 8;
+            return;
         }
-        *iter = 1;
-        *rbdtype = 0;
-        *rbdind = 0;
-        *inform = 4;
-        return true;
-    }
 
-    // Third CG C++ slice: guarded trust-region-boundary stop regime.
-    // Tuned to the deterministic samep_ab fixture envelope and kept narrow.
-    if (*maxitnqmp > 1 && *epsrel >= 1.0 && *epsabs >= 1.0e6 && *delta > 0.0) {
-        const double alpha = 0.5 * (*delta);
-        for (int i = 0; i < nind_val; ++i) {
-            double si = -alpha * g[i];
-            const double low = l[i] - x[i];
-            const double high = u[i] - x[i];
-            s[i] = std::max(low, std::min(si, high));
+        if (*iter == 0) {
+            for (int i = 0; i < nind_val; ++i) {
+                d[i] = -r[i];
+            }
+            dnorm2 = rnorm2;
+            dtr = -rnorm2;
+        } else {
+            const double beta = rnorm2 / rnorm2prev;
+            for (int i = 0; i < nind_val; ++i) {
+                d[i] = -r[i] + beta * d[i];
+            }
+            dnorm2 = rnorm2 - 2.0 * beta * (dtr + alpha * dtw) + beta * beta * dnorm2;
+            dtr = -rnorm2 + beta * (dtr + alpha * dtw);
         }
-        *iter = 1;
-        *rbdtype = 0;
-        *rbdind = 0;
-        *inform = 1;
-        return true;
-    }
 
-    // Non-zero CG scenarios are still delegated to Fortran for exact parity.
-    return false;
+        if (dtr > 0.0) {
+            for (int i = 0; i < nind_val; ++i) {
+                d[i] = -d[i];
+            }
+            dtr = -dtr;
+        }
+
+        if (*htvtype == 0) {
+            packmol_calchd_fortran_c(
+                nind, ind, x, d, g, n, x, m, lambda, rho, w, y, sterel, steabs, inform
+            );
+        } else if (*htvtype == 1) {
+            packmol_calchddiff_fortran_c(
+                nind, ind, x, d, g, n, x, m, lambda, rho, gtype, w, y, sterel, steabs, inform
+            );
+        } else {
+            *inform = -1;
+            return;
+        }
+
+        if (*inform < 0) {
+            return;
+        }
+
+        dtw = dot(d, w);
+
+        if (debug) {
+            std::fprintf(
+                stderr,
+                "[gencan-cg-iter] call=%d iter=%d rnorm2=%.16e dnorm2=%.16e dtr=%.16e dtw=%.16e\n",
+                g_cg_active_call_id, *iter, rnorm2, dnorm2, dtr, dtw
+            );
+        }
+
+        const double dts = dot(d, s);
+
+        double amax1 = *infabs;
+        double amax1n = -*infabs;
+        if (*trtype == 0) {
+            const double aa = dnorm2;
+            const double bb = 2.0 * dts;
+            const double cc = snorm2 - (*delta) * (*delta);
+            const double dd = std::sqrt(bb * bb - 4.0 * aa * cc);
+            amax1 = (-bb + dd) / (2.0 * aa);
+            amax1n = (-bb - dd) / (2.0 * aa);
+        } else if (*trtype == 1) {
+            for (int i = 0; i < nind_val; ++i) {
+                if (d[i] > 0.0) {
+                    amax1 = std::min(amax1, ((*delta) - s[i]) / d[i]);
+                    amax1n = std::max(amax1n, ((-*delta) - s[i]) / d[i]);
+                } else if (d[i] < 0.0) {
+                    amax1 = std::min(amax1, ((-*delta) - s[i]) / d[i]);
+                    amax1n = std::max(amax1n, ((*delta) - s[i]) / d[i]);
+                }
+            }
+        }
+
+        double amax2 = *infabs;
+        double amax2n = -*infabs;
+        int rbdposaind = 0;
+        int rbdposatype = 0;
+        int rbdnegaind = 0;
+        int rbdnegatype = 0;
+        for (int i = 0; i < nind_val; ++i) {
+            if (d[i] > 0.0) {
+                const double amax2x = (u[i] - x[i] - s[i]) / d[i];
+                if (amax2x < amax2) {
+                    amax2 = amax2x;
+                    rbdposaind = i + 1;
+                    rbdposatype = 2;
+                }
+                const double amax2nx = (l[i] - x[i] - s[i]) / d[i];
+                if (amax2nx > amax2n) {
+                    amax2n = amax2nx;
+                    rbdnegaind = i + 1;
+                    rbdnegatype = 1;
+                }
+            } else if (d[i] < 0.0) {
+                const double amax2x = (l[i] - x[i] - s[i]) / d[i];
+                if (amax2x < amax2) {
+                    amax2 = amax2x;
+                    rbdposaind = i + 1;
+                    rbdposatype = 1;
+                }
+                const double amax2nx = (u[i] - x[i] - s[i]) / d[i];
+                if (amax2nx > amax2n) {
+                    amax2n = amax2nx;
+                    rbdnegaind = i + 1;
+                    rbdnegatype = 2;
+                }
+            }
+        }
+
+        const double amax = std::min(amax1, amax2);
+        const double amaxn = std::max(amax1n, amax2n);
+
+        qprev = q;
+        if (dtw > 0.0) {
+            alpha = std::min(amax, rnorm2 / dtw);
+            q = q + 0.5 * alpha * alpha * dtw + alpha * dtr;
+        } else {
+            const double qamax = q + 0.5 * amax * amax * dtw + amax * dtr;
+            if (*iter == 0) {
+                alpha = amax;
+                q = qamax;
+            } else {
+                const double qamaxn = q + 0.5 * amaxn * amaxn * dtw + amaxn * dtr;
+                const bool allow_negative_curvature_step = *nearlyq || cg_dtw_relax_enabled();
+                if (allow_negative_curvature_step && (qamax < q || qamaxn < q)) {
+                    if (qamax < qamaxn) {
+                        alpha = amax;
+                        q = qamax;
+                    } else {
+                        alpha = amaxn;
+                        q = qamaxn;
+                    }
+                } else {
+                    *rbdtype = 0;
+                    *rbdind = 0;
+                    *inform = 7;
+                    if (debug) {
+                        std::fprintf(
+                            stderr,
+                            "[gencan-cg-exit] call=%d iter=%d reason=inform7 dtw=%.16e amax=%.16e amaxn=%.16e q=%.16e qamax=%.16e qamaxn=%.16e\n",
+                            g_cg_active_call_id, *iter, dtw, amax, amaxn, q, qamax, qamaxn
+                        );
+                    }
+                    return;
+                }
+            }
+        }
+
+        if (debug) {
+            std::fprintf(
+                stderr,
+                "[gencan-cg-step] call=%d iter=%d alpha=%.16e amax=%.16e amax1=%.16e amax2=%.16e amaxn=%.16e q=%.16e\n",
+                g_cg_active_call_id, *iter, alpha, amax, amax1, amax2, amaxn, q
+            );
+        }
+
+        for (int i = 0; i < nind_val; ++i) {
+            sprev[i] = s[i];
+            s[i] = s[i] + alpha * d[i];
+        }
+        const double snorm2prev = snorm2;
+        snorm2 = snorm2 + alpha * alpha * dnorm2 + 2.0 * alpha * dts;
+
+        rnorm2prev = rnorm2;
+        for (int i = 0; i < nind_val; ++i) {
+            r[i] = r[i] + alpha * w[i];
+        }
+        rnorm2 = norm2(r);
+
+        *iter += 1;
+
+        const double gts = dot(g, s);
+        if (gts > 0.0 || gts * gts < (*theta) * (*theta) * gnorm2 * snorm2) {
+            for (int i = 0; i < nind_val; ++i) {
+                s[i] = sprev[i];
+            }
+            snorm2 = snorm2prev;
+            q = qprev;
+            *rbdtype = 0;
+            *rbdind = 0;
+            *inform = 3;
+            if (debug) {
+                std::fprintf(
+                    stderr,
+                    "[gencan-cg-exit] call=%d iter=%d reason=angle gts=%.16e gnorm2=%.16e snorm2=%.16e\n",
+                    g_cg_active_call_id, *iter, gts, gnorm2, snorm2
+                );
+            }
+            return;
+        }
+
+        if (alpha == amax2 || alpha == amax2n) {
+            if (alpha == amax2) {
+                *rbdind = rbdposaind;
+                *rbdtype = rbdposatype;
+            } else {
+                *rbdind = rbdnegaind;
+                *rbdtype = rbdnegatype;
+            }
+            *inform = 2;
+            if (debug) {
+                std::fprintf(
+                    stderr,
+                    "[gencan-cg-exit] call=%d iter=%d reason=box alpha=%.16e amax2=%.16e amax2n=%.16e rbdtype=%d rbdind=%d\n",
+                    g_cg_active_call_id, *iter, alpha, amax2, amax2n, *rbdtype, *rbdind
+                );
+            }
+            return;
+        }
+
+        if (alpha == amax1 || alpha == amax1n) {
+            *rbdtype = 0;
+            *rbdind = 0;
+            *inform = 1;
+            if (debug) {
+                std::fprintf(
+                    stderr,
+                    "[gencan-cg-exit] call=%d iter=%d reason=trust alpha=%.16e amax1=%.16e amax1n=%.16e\n",
+                    g_cg_active_call_id, *iter, alpha, amax1, amax1n
+                );
+            }
+            return;
+        }
+
+        bool samep = true;
+        for (int i = 0; i < nind_val; ++i) {
+            if (std::abs(alpha * d[i]) > std::max((*epsrel) * std::abs(s[i]), *epsabs)) {
+                samep = false;
+            }
+        }
+        if (samep) {
+            *rbdtype = 0;
+            *rbdind = 0;
+            *inform = 6;
+            if (debug) {
+                std::fprintf(
+                    stderr,
+                    "[gencan-cg-exit] call=%d iter=%d reason=samep alpha=%.16e\n",
+                    g_cg_active_call_id, *iter, alpha
+                );
+            }
+            return;
+        }
+
+        const double currprog = qprev - q;
+        bestprog = std::max(currprog, bestprog);
+        if (currprog <= (*epsnqmp) * bestprog) {
+            itnqmp += 1;
+            if (itnqmp >= *maxitnqmp) {
+                *rbdtype = 0;
+                *rbdind = 0;
+                *inform = 4;
+                if (debug) {
+                    std::fprintf(
+                        stderr,
+                        "[gencan-cg-exit] call=%d iter=%d reason=nqmp currprog=%.16e bestprog=%.16e epsnqmp=%.16e itnqmp=%d\n",
+                        g_cg_active_call_id, *iter, currprog, bestprog, *epsnqmp, itnqmp
+                    );
+                }
+                return;
+            }
+        } else {
+            itnqmp = 0;
+        }
+    }
 }
 
 }  // namespace
@@ -899,6 +1425,22 @@ extern "C" void packmol_gencan_cg_bridge(
     const double* infrel,
     const double* infabs
 ) {
+    static int cg_call_counter = 0;
+    cg_call_counter += 1;
+    if (gencan_debug_enabled()) {
+        double gnorm2_in = 0.0;
+        double xsum_in = 0.0;
+        for (int i = 0; i < *nind; ++i) {
+            gnorm2_in += g[i] * g[i];
+            xsum_in += x[i];
+        }
+        std::fprintf(
+            stderr,
+            "[gencan-cg-entry] call=%d mode=%d nind=%d gnorm2=%.16e xsum=%.16e delta=%.16e eps=%.16e epsnqmp=%.16e maxit=%d maxitnqmp=%d\n",
+            cg_call_counter, static_cast<int>(active_impl_mode()), *nind, gnorm2_in, xsum_in,
+            *delta, *eps, *epsnqmp, *maxit, *maxitnqmp
+        );
+    }
     switch (active_impl_mode()) {
         case GencanImplMode::kFortran:
             packmol_cg_fortran_c(
@@ -907,20 +1449,132 @@ extern "C" void packmol_gencan_cg_bridge(
                 iter, rbdtype, rbdind, inform, w, y, r, d, sprev, theta, sterel,
                 steabs, epsrel, epsabs, infrel, infabs
             );
+            if (gencan_debug_enabled()) {
+                double snorm2 = 0.0;
+                for (int i = 0; i < *nind; ++i) {
+                    snorm2 += s[i] * s[i];
+                }
+                std::fprintf(
+                    stderr,
+                    "[gencan-cg-fortran] nind=%d nearlyq=%d iter=%d inform=%d rbdtype=%d rbdind=%d snorm2=%.16e\n",
+                    *nind, *nearlyq ? 1 : 0, *iter, *inform, *rbdtype, *rbdind, snorm2
+                );
+            }
             return;
         case GencanImplMode::kCpp:
         case GencanImplMode::kAb:
-            if (cg_cpp_subset(
-                    nind, x, g, delta, l, u, epsnqmp, maxitnqmp, theta, epsrel, epsabs,
-                    s, iter, rbdtype, rbdind, inform)) {
-                return;
+            int fortran_iter = 0;
+            int fortran_rbdtype = 0;
+            int fortran_rbdind = 0;
+            int fortran_inform = 0;
+            double fortran_snorm2 = 0.0;
+            std::vector<double> s_ref_dbg;
+            std::vector<double> r_ref_dbg;
+            std::vector<double> d_ref_dbg;
+            const bool shadow_enabled = cg_shadow_compare_enabled();
+            std::vector<int> ind_ref;
+            std::vector<double> x_ref, g_ref, s_ref, w_ref, y_ref, r_ref, d_ref, sprev_ref;
+            if (shadow_enabled) {
+                ind_ref.resize(*nind);
+                x_ref.resize(*n);
+                g_ref.resize(*n);
+                s_ref.resize(*n);
+                w_ref.resize(*n);
+                y_ref.resize(*n);
+                r_ref.resize(*n);
+                d_ref.resize(*n);
+                sprev_ref.resize(*n);
+                for (int i = 0; i < *nind; ++i) ind_ref[i] = ind[i];
+                for (int i = 0; i < *n; ++i) {
+                    x_ref[i] = x[i];
+                    g_ref[i] = g[i];
+                    s_ref[i] = s[i];
+                    w_ref[i] = w[i];
+                    y_ref[i] = y[i];
+                    r_ref[i] = r[i];
+                    d_ref[i] = d[i];
+                    sprev_ref[i] = sprev[i];
+                }
             }
-            packmol_cg_fortran_c(
+            if (shadow_enabled) {
+                int iprint_shadow = *iprint;
+                if (gencan_debug_enabled()) {
+                    iprint_shadow = std::max(iprint_shadow, 4);
+                }
+                packmol_cg_fortran_c(
+                    nind, ind_ref.data(), n, x_ref.data(), m, lambda, rho, g_ref.data(), delta, l, u, eps, epsnqmp,
+                    maxitnqmp, maxit, nearlyq, gtype, htvtype, trtype, &iprint_shadow, ncomp, s_ref.data(),
+                    &fortran_iter, &fortran_rbdtype, &fortran_rbdind, &fortran_inform, w_ref.data(), y_ref.data(),
+                    r_ref.data(), d_ref.data(), sprev_ref.data(), theta, sterel, steabs, epsrel, epsabs, infrel, infabs
+                );
+                for (int i = 0; i < *nind; ++i) {
+                    fortran_snorm2 += s_ref[i] * s_ref[i];
+                }
+                s_ref_dbg.assign(s_ref.begin(), s_ref.end());
+                r_ref_dbg.assign(r_ref.begin(), r_ref.end());
+                d_ref_dbg.assign(d_ref.begin(), d_ref.end());
+            }
+            if (gencan_debug_enabled()) {
+                std::fprintf(stderr, "[gencan-cg-cpp] nind=%d n=%d trtype=%d htvtype=%d gtype=%d\n",
+                             *nind, *n, *trtype, *htvtype, *gtype);
+            }
+            g_cg_active_call_id = cg_call_counter;
+            cg_cpp_full(
                 nind, ind, n, x, m, lambda, rho, g, delta, l, u, eps, epsnqmp,
-                maxitnqmp, maxit, nearlyq, gtype, htvtype, trtype, iprint, ncomp, s,
-                iter, rbdtype, rbdind, inform, w, y, r, d, sprev, theta, sterel,
-                steabs, epsrel, epsabs, infrel, infabs
+                maxitnqmp, maxit, nearlyq, gtype, htvtype, trtype, iprint, theta,
+                sterel, steabs, epsrel, epsabs, infabs, s, w, y, r, d, sprev, iter,
+                rbdtype, rbdind, inform
             );
+            g_cg_active_call_id = 0;
+            if (gencan_debug_enabled()) {
+                double snorm2 = 0.0;
+                for (int i = 0; i < *nind; ++i) {
+                    snorm2 += s[i] * s[i];
+                }
+                std::fprintf(
+                    stderr,
+                    "[gencan-cg-cpp-out] nind=%d nearlyq=%d iter=%d inform=%d rbdtype=%d rbdind=%d snorm2=%.16e\n",
+                    *nind, *nearlyq ? 1 : 0, *iter, *inform, *rbdtype, *rbdind, snorm2
+                );
+                if (shadow_enabled) {
+                    double max_s_diff = 0.0;
+                    double max_r_diff = 0.0;
+                    double max_d_diff = 0.0;
+                    int max_s_idx = -1;
+                    int max_r_idx = -1;
+                    int max_d_idx = -1;
+                    for (int i = 0; i < *nind; ++i) {
+                        if (i < static_cast<int>(s_ref_dbg.size())) {
+                            const double ds = std::abs(s_ref_dbg[i] - s[i]);
+                            if (ds > max_s_diff) {
+                                max_s_diff = ds;
+                                max_s_idx = i + 1;
+                            }
+                        }
+                        if (i < static_cast<int>(r_ref_dbg.size())) {
+                            const double dr = std::abs(r_ref_dbg[i] - r[i]);
+                            if (dr > max_r_diff) {
+                                max_r_diff = dr;
+                                max_r_idx = i + 1;
+                            }
+                        }
+                        if (i < static_cast<int>(d_ref_dbg.size())) {
+                            const double dd = std::abs(d_ref_dbg[i] - d[i]);
+                            if (dd > max_d_diff) {
+                                max_d_diff = dd;
+                                max_d_idx = i + 1;
+                            }
+                        }
+                    }
+                    std::fprintf(
+                        stderr,
+                        "[gencan-cg-shadow] nind=%d f_iter=%d c_iter=%d f_inform=%d c_inform=%d f_rbdtype=%d c_rbdtype=%d f_rbdind=%d c_rbdind=%d f_snorm2=%.16e c_snorm2=%.16e max|ds|=%.16e@%d max|dr|=%.16e@%d max|dd|=%.16e@%d\n",
+                        *nind, fortran_iter, *iter, fortran_inform, *inform, fortran_rbdtype,
+                        *rbdtype, fortran_rbdind, *rbdind, fortran_snorm2, snorm2,
+                        max_s_diff, max_s_idx, max_r_diff, max_r_idx, max_d_diff, max_d_idx
+                    );
+                }
+            }
             return;
     }
 }
@@ -1029,6 +1683,117 @@ extern "C" void packmol_gencan_fortran_c(
     const double* infabs
 );
 
+namespace {
+
+void easygencan_cpp(
+    const int* n,
+    double* x,
+    const double* l,
+    const double* u,
+    const int* m,
+    const double* lambda,
+    const double* rho,
+    const double* epsgpsn,
+    const int* maxit,
+    const int* maxfc,
+    const int* iprint,
+    const int* ncomp,
+    double* f,
+    double* g,
+    double* gpsupn,
+    int* iter,
+    int* fcnt,
+    int* gcnt,
+    int* cgcnt,
+    int* inform,
+    int* wi,
+    double* wd,
+    double* delmin
+) {
+    const int n_val = *n;
+    const int tmax = 1000;
+
+    const double steabs = 1.0e-10;
+    const double sterel = 1.0e-7;
+    const double epsabs = 1.0e-20;
+    const double epsrel = 1.0e-10;
+    const double infabs = 1.0e99;
+    const double infrel = 1.0e20;
+
+    const double beta = 0.5;
+    const double gamma = 1.0e-4;
+    const double theta = 1.0e-6;
+    const double sigma1 = 0.1;
+    const double sigma2 = 0.9;
+
+    const int maxextrap = 100;
+    const int mininterp = 4;
+    const double nint = 2.0;
+    const double next = 2.0;
+    double delmin_local = 1.0e-2;
+    const double eta = 0.9;
+    const double lspgma = 1.0e10;
+    const double lspgmi = 1.0e-10;
+
+    const int gtype = 0;
+    const int htvtype = 1;
+    const double epsgpen = 0.0;
+
+    const int maxitngp = tmax;
+    const int maxitnfp = *maxit;
+    const double epsnfp = 0.0;
+    const double fmin = 1.0e-5;
+
+    const double delta0 = -1.0;
+    const int cgmaxit = -1;
+    const int trtype = 1;
+    const int cgscre = 2;
+    const double cggpnf = std::max(1.0e-4, std::max(epsgpen, *epsgpsn));
+    const double cgepsi = 1.0e-1;
+    const double cgepsf = 1.0e-5;
+    const double epsnqmp = 1.0e-4;
+    const int maxitnqmp = 5;
+    const bool nearlyq = false;
+
+    int spgiter = 0;
+    int spgfcnt = 0;
+    int tniter = 0;
+    int tnfcnt = 0;
+    int tnstpcnt = 0;
+    int tnintcnt = 0;
+    int tnexgcnt = 0;
+    int tnexbcnt = 0;
+    int tnintfe = 0;
+    int tnexgfe = 0;
+    int tnexbfe = 0;
+    double gpeucn2 = 0.0;
+
+    std::vector<double> lastgpns(tmax, 0.0);
+
+    double* s = wd;
+    double* y = wd + n_val;
+    double* d = wd + 2 * n_val;
+    double* w = wd + 3 * n_val;
+
+    packmol_gencan_fortran_c(
+        n, x, l, u, m, lambda, rho, &epsgpen, epsgpsn, &maxitnfp, &epsnfp,
+        &maxitngp, &fmin, maxit, maxfc, &delta0, &cgmaxit, &cgscre, &cggpnf,
+        &cgepsi, &cgepsf, &epsnqmp, &maxitnqmp, &nearlyq, &nint, &next,
+        &mininterp, &maxextrap, &gtype, &htvtype, &trtype, iprint, ncomp, f, g,
+        &gpeucn2, gpsupn, iter, fcnt, gcnt, cgcnt, &spgiter, &spgfcnt, &tniter,
+        &tnfcnt, &tnstpcnt, &tnintcnt, &tnexgcnt, &tnexbcnt, &tnintfe, &tnexgfe,
+        &tnexbfe, inform, s, y, d, wi, lastgpns.data(), w, &eta, &delmin_local, &lspgma,
+        &lspgmi, &theta, &gamma, &beta, &sigma1, &sigma2, &sterel, &steabs,
+        &epsrel, &epsabs, &infrel, &infabs
+    );
+
+    if (delmin != nullptr) {
+        *delmin = delmin_local;
+    }
+}
+
+}  // namespace
+
 extern "C" void packmol_gencan_easy_bridge(
     const int* n,
     double* x,
@@ -1057,12 +1822,24 @@ extern "C" void packmol_gencan_easy_bridge(
 ) {
     switch (active_impl_mode()) {
         case GencanImplMode::kFortran:
-        case GencanImplMode::kCpp:
-        case GencanImplMode::kAb:
             packmol_easyg_fortran_c(
                 n, x, l, u, m, lambda, rho, epsgpsn, maxit, maxfc, trtype, iprint,
                 ncomp, f, g, gpsupn, iter, fcnt, gcnt, cgcnt, inform, wi, wd, delmin
             );
+            return;
+        case GencanImplMode::kCpp:
+        case GencanImplMode::kAb:
+            if (use_easy_cpp_draft()) {
+                easygencan_cpp(
+                    n, x, l, u, m, lambda, rho, epsgpsn, maxit, maxfc, iprint, ncomp,
+                    f, g, gpsupn, iter, fcnt, gcnt, cgcnt, inform, wi, wd, delmin
+                );
+            } else {
+                packmol_easyg_fortran_c(
+                    n, x, l, u, m, lambda, rho, epsgpsn, maxit, maxfc, trtype, iprint,
+                    ncomp, f, g, gpsupn, iter, fcnt, gcnt, cgcnt, inform, wi, wd, delmin
+                );
+            }
             return;
     }
 }
@@ -1145,8 +1922,6 @@ extern "C" void packmol_gencan_gencan_bridge(
 ) {
     switch (active_impl_mode()) {
         case GencanImplMode::kFortran:
-        case GencanImplMode::kCpp:
-        case GencanImplMode::kAb:
             packmol_gencan_fortran_c(
                 n, x, l, u, m, lambda, rho, epsgpen, epsgpsn, maxitnfp, epsnfp,
                 maxitngp, fmin, maxit, maxfc, udelta0, ucgmaxit, cgscre, cggpnf,
@@ -1159,5 +1934,838 @@ extern "C" void packmol_gencan_gencan_bridge(
                 infrel, infabs
             );
             return;
+        case GencanImplMode::kCpp:
+        case GencanImplMode::kAb: {
+            const int n_val = *n;
+            const int m_val = *m;
+            const char* fallback_reason = "cpp_nonterminal_continue";
+
+            std::vector<double> x_try(n_val);
+            std::vector<double> g_try(n_val, 0.0);
+            std::vector<int> ind_try(n_val);
+            std::vector<int> ind_all(n_val);
+            for (int i = 0; i < n_val; ++i) {
+                x_try[i] = std::max(l[i], std::min(x[i], u[i]));
+                ind_try[i] = i + 1;
+                ind_all[i] = i + 1;
+            }
+
+            int eval_flag = 0;
+            double f_try = 0.0;
+            packmol_evalal_fortran_c(n, x_try.data(), m, lambda, rho, &f_try, &eval_flag);
+
+            bool precision_solution = false;
+            packmol_packmolprecision_fortran_c(n, x_try.data(), &precision_solution);
+            if (precision_solution) {
+                *f = f_try;
+                for (int i = 0; i < n_val; ++i) {
+                    x[i] = x_try[i];
+                }
+                *iter = 0;
+                *fcnt = 0;
+                *gcnt = 0;
+                *cgcnt = 0;
+                *spgiter = 0;
+                *spgfcnt = 0;
+                *tniter = 0;
+                *tnfcnt = 0;
+                *tnstpcnt = 0;
+                *tnintcnt = 0;
+                *tnexgcnt = 0;
+                *tnexbcnt = 0;
+                *tnintfe = 0;
+                *tnexgfe = 0;
+                *tnexbfe = 0;
+                *inform = eval_flag;
+                return;
+            }
+
+            if (eval_flag < 0) {
+                *f = f_try;
+                for (int i = 0; i < n_val; ++i) {
+                    x[i] = x_try[i];
+                }
+                *iter = 0;
+                *fcnt = 1;
+                *gcnt = 0;
+                *cgcnt = 0;
+                *spgiter = 0;
+                *spgfcnt = 0;
+                *tniter = 0;
+                *tnfcnt = 0;
+                *tnstpcnt = 0;
+                *tnintcnt = 0;
+                *tnexgcnt = 0;
+                *tnexbcnt = 0;
+                *tnintfe = 0;
+                *tnexgfe = 0;
+                *tnexbfe = 0;
+                *inform = eval_flag;
+                return;
+            }
+
+            int grad_flag = 0;
+            if (*gtype == 0) {
+                packmol_calcg_fortran_c(
+                    n, ind_all.data(), x_try.data(), &n_val, x_try.data(), &m_val,
+                    lambda, rho, g_try.data(), &grad_flag
+                );
+            } else {
+                packmol_calcgdiff_fortran_c(
+                    n, ind_all.data(), x_try.data(), &n_val, x_try.data(), &m_val,
+                    lambda, rho, g_try.data(), sterel, steabs, &grad_flag
+                );
+            }
+
+            if (grad_flag < 0) {
+                *f = f_try;
+                for (int i = 0; i < n_val; ++i) {
+                    x[i] = x_try[i];
+                }
+                *iter = 0;
+                *fcnt = 1;
+                *gcnt = 1;
+                *cgcnt = 0;
+                *spgiter = 0;
+                *spgfcnt = 0;
+                *tniter = 0;
+                *tnfcnt = 0;
+                *tnstpcnt = 0;
+                *tnintcnt = 0;
+                *tnexgcnt = 0;
+                *tnexbcnt = 0;
+                *tnintfe = 0;
+                *tnexgfe = 0;
+                *tnexbfe = 0;
+                *inform = grad_flag;
+                return;
+            }
+
+            if (grad_flag == 0) {
+                double gpsupn_try = 0.0;
+                double gpeucn2_try = 0.0;
+                double gieucn2_try = 0.0;
+                int nind_try = 0;
+                for (int i = 0; i < n_val; ++i) {
+                    const double xpg = x_try[i] - g_try[i];
+                    const double gpi = std::min(u[i], std::max(l[i], xpg)) - x_try[i];
+                    gpsupn_try = std::max(gpsupn_try, std::abs(gpi));
+                    gpeucn2_try += gpi * gpi;
+                    if (x_try[i] > l[i] && x_try[i] < u[i]) {
+                        gieucn2_try += gpi * gpi;
+                        ind_try[nind_try] = i + 1;
+                        nind_try += 1;
+                    }
+                }
+
+                const double epsgpen2 = (*epsgpen) * (*epsgpen);
+                int inform_try = -1;
+                if (gpeucn2_try <= epsgpen2) {
+                    inform_try = 0;
+                } else if (gpsupn_try <= *epsgpsn) {
+                    inform_try = 1;
+                } else {
+                    const double fprev = *infabs;
+                    const double currprog = fprev - f_try;
+                    const double bestprog = std::max(currprog, 0.0);
+                    int itnfp = 0;
+                    if (currprog <= (*epsnfp) * bestprog) {
+                        itnfp += 1;
+                        if (itnfp >= *maxitnfp) {
+                            inform_try = 2;
+                        }
+                    }
+                }
+
+                if (inform_try < 0) {
+                    double gpnmax = *infabs;
+                    if (gpeucn2_try >= gpnmax) {
+                        inform_try = 3;
+                    }
+                }
+
+                if (inform_try < 0 && f_try <= *fmin) {
+                    inform_try = 4;
+                } else if (inform_try < 0 && 0 >= *maxit) {
+                    inform_try = 7;
+                } else if (inform_try < 0 && 1 >= *maxfc) {
+                    inform_try = 8;
+                }
+
+                    if (inform_try >= 0) {
+                        *f = f_try;
+                    for (int i = 0; i < n_val; ++i) {
+                        x[i] = x_try[i];
+                        g[i] = g_try[i];
+                    }
+                    for (int i = 0; i < nind_try; ++i) {
+                        ind[i] = ind_try[i];
+                    }
+                    *gpeucn2 = gpeucn2_try;
+                    *gpsupn = gpsupn_try;
+                    *iter = 0;
+                    *fcnt = 1;
+                    *gcnt = 1;
+                    *cgcnt = 0;
+                    *spgiter = 0;
+                    *spgfcnt = 0;
+                    *tniter = 0;
+                    *tnfcnt = 0;
+                    *tnstpcnt = 0;
+                    *tnintcnt = 0;
+                    *tnexgcnt = 0;
+                    *tnexbcnt = 0;
+                        *tnintfe = 0;
+                        *tnexgfe = 0;
+                        *tnexbfe = 0;
+                        if (*maxitngp > 0 && inform_try == 3) {
+                            lastgpns[0] = gpeucn2_try;
+                        }
+                        *inform = inform_try;
+                        return;
+                    }
+
+                const double ometa2 = (1.0 - *eta) * (1.0 - *eta);
+                if (gpeucn2_try > 0.0 && gieucn2_try <= ometa2 * gpeucn2_try) {
+                    std::vector<double> x_work = x_try;
+                    std::vector<double> g_work = g_try;
+                    std::vector<double> x_prev = x_try;
+                    std::vector<double> g_prev = g_try;
+                    std::vector<double> s_work(n_val, 0.0);
+                    std::vector<double> y_work(n_val, 0.0);
+                    std::vector<double> xtrial_work(n_val, 0.0);
+                    std::vector<double> d_work(n_val, 0.0);
+                    std::vector<int> ind_work(n_val, 0);
+
+                    int iter_work = 1;
+                    int fcnt_work = 1;
+                    int gcnt_work = 1;
+                    int cgcnt_work = 0;
+                    int spgiter_work = 1;
+                    int spgfcnt_work = 0;
+                    int tniter_work = 0;
+                    int tnfcnt_work = 0;
+                    int tnstpcnt_work = 0;
+                    int tnintcnt_work = 0;
+                    int tnexgcnt_work = 0;
+                    int tnexbcnt_work = 0;
+                    int tnintfe_work = 0;
+                    int tnexgfe_work = 0;
+                    int tnexbfe_work = 0;
+
+                    double f_work = f_try;
+
+                    double xnorm = 0.0;
+                    for (int i = 0; i < n_val; ++i) {
+                        xnorm += x_work[i] * x_work[i];
+                    }
+                    xnorm = std::sqrt(xnorm);
+
+                    double lamspg = std::max(1.0, xnorm) / std::sqrt(gpeucn2_try);
+                    lamspg = std::min(*lspgma, std::max(*lspgmi, lamspg));
+
+                    int ls_inform = 0;
+                    const int fcnt_prev = fcnt_work;
+                    spgls_cpp(
+                        n, x_work.data(), m, lambda, rho, &f_work, g_work.data(), l, u, &lamspg,
+                        nint, mininterp, fmin, maxfc, &fcnt_work, &ls_inform, xtrial_work.data(),
+                        d_work.data(), gamma, sigma1, sigma2, epsrel, epsabs
+                    );
+                    spgfcnt_work += (fcnt_work - fcnt_prev);
+
+                    if (ls_inform < 0) {
+                        *f = f_work;
+                        for (int i = 0; i < n_val; ++i) {
+                            x[i] = x_work[i];
+                            g[i] = g_work[i];
+                        }
+                        *iter = iter_work;
+                        *fcnt = fcnt_work;
+                        *gcnt = gcnt_work;
+                        *cgcnt = cgcnt_work;
+                        *spgiter = spgiter_work;
+                        *spgfcnt = spgfcnt_work;
+                        *tniter = tniter_work;
+                        *tnfcnt = tnfcnt_work;
+                        *tnstpcnt = tnstpcnt_work;
+                        *tnintcnt = tnintcnt_work;
+                        *tnexgcnt = tnexgcnt_work;
+                        *tnexbcnt = tnexbcnt_work;
+                        *tnintfe = tnintfe_work;
+                        *tnexgfe = tnexgfe_work;
+                        *tnexbfe = tnexbfe_work;
+                        *inform = ls_inform;
+                        return;
+                    }
+
+                    int grad_after_spg = 0;
+                    if (*gtype == 0) {
+                        packmol_calcg_fortran_c(
+                            n, ind_all.data(), x_work.data(), &n_val, x_work.data(), &m_val,
+                            lambda, rho, g_work.data(), &grad_after_spg
+                        );
+                    } else {
+                        packmol_calcgdiff_fortran_c(
+                            n, ind_all.data(), x_work.data(), &n_val, x_work.data(), &m_val,
+                            lambda, rho, g_work.data(), sterel, steabs, &grad_after_spg
+                        );
+                    }
+                    gcnt_work += 1;
+
+                    if (grad_after_spg < 0) {
+                        *f = f_work;
+                        for (int i = 0; i < n_val; ++i) {
+                            x[i] = x_work[i];
+                            g[i] = g_work[i];
+                        }
+                        *iter = iter_work;
+                        *fcnt = fcnt_work;
+                        *gcnt = gcnt_work;
+                        *cgcnt = cgcnt_work;
+                        *spgiter = spgiter_work;
+                        *spgfcnt = spgfcnt_work;
+                        *tniter = tniter_work;
+                        *tnfcnt = tnfcnt_work;
+                        *tnstpcnt = tnstpcnt_work;
+                        *tnintcnt = tnintcnt_work;
+                        *tnexgcnt = tnexgcnt_work;
+                        *tnexbcnt = tnexbcnt_work;
+                        *tnintfe = tnintfe_work;
+                        *tnexgfe = tnexgfe_work;
+                        *tnexbfe = tnexbfe_work;
+                        *inform = grad_after_spg;
+                        return;
+                    }
+
+                    for (int i = 0; i < n_val; ++i) {
+                        if (x_work[i] <= l[i] + std::max((*epsrel) * std::abs(l[i]), *epsabs)) {
+                            x_work[i] = l[i];
+                        } else if (x_work[i] >= u[i] - std::max((*epsrel) * std::abs(u[i]), *epsabs)) {
+                            x_work[i] = u[i];
+                        }
+                    }
+
+                    double gpsupn_after = 0.0;
+                    double gpeucn2_after = 0.0;
+                    int nind_after = 0;
+                    for (int i = 0; i < n_val; ++i) {
+                        s_work[i] = x_work[i] - x_prev[i];
+                        y_work[i] = g_work[i] - g_prev[i];
+                        const double xpg = x_work[i] - g_work[i];
+                        const double gpi = std::min(u[i], std::max(l[i], xpg)) - x_work[i];
+                        gpsupn_after = std::max(gpsupn_after, std::abs(gpi));
+                        gpeucn2_after += gpi * gpi;
+                        if (x_work[i] > l[i] && x_work[i] < u[i]) {
+                            ind_work[nind_after] = i + 1;
+                            nind_after += 1;
+                        }
+                    }
+
+                    if (ls_inform == 6) {
+                        *f = f_work;
+                        for (int i = 0; i < n_val; ++i) {
+                            x[i] = x_work[i];
+                            g[i] = g_work[i];
+                            s[i] = s_work[i];
+                            y[i] = y_work[i];
+                            d[i] = d_work[i];
+                        }
+                        for (int i = 0; i < nind_after; ++i) {
+                            ind[i] = ind_work[i];
+                        }
+                        *gpeucn2 = gpeucn2_after;
+                        *gpsupn = gpsupn_after;
+                        *iter = iter_work;
+                        *fcnt = fcnt_work;
+                        *gcnt = gcnt_work;
+                        *cgcnt = cgcnt_work;
+                        *spgiter = spgiter_work;
+                        *spgfcnt = spgfcnt_work;
+                        *tniter = tniter_work;
+                        *tnfcnt = tnfcnt_work;
+                        *tnstpcnt = tnstpcnt_work;
+                        *tnintcnt = tnintcnt_work;
+                        *tnexgcnt = tnexgcnt_work;
+                        *tnexbcnt = tnexbcnt_work;
+                        *tnintfe = tnintfe_work;
+                        *tnexgfe = tnexgfe_work;
+                        *tnexbfe = tnexbfe_work;
+                        *inform = 6;
+                        return;
+                    }
+
+                    bool precision_after_spg = false;
+                    packmol_packmolprecision_fortran_c(n, x_work.data(), &precision_after_spg);
+                    int post_inform = -1;
+                    if (precision_after_spg) {
+                        post_inform = ls_inform;
+                    } else if (gpeucn2_after <= (*epsgpen) * (*epsgpen)) {
+                        post_inform = 0;
+                    } else if (gpsupn_after <= *epsgpsn) {
+                        post_inform = 1;
+                    } else {
+                        const double currprog = f_try - f_work;
+                        const double bestprog = std::max(currprog, 0.0);
+                        int itnfp = 0;
+                        if (currprog <= (*epsnfp) * bestprog) {
+                            itnfp += 1;
+                            if (itnfp >= *maxitnfp) {
+                                post_inform = 2;
+                            }
+                        }
+                    }
+
+                    if (post_inform < 0) {
+                        double gpnmax = *infabs;
+                        for (int i = 0; i < *maxitngp; ++i) {
+                            gpnmax = std::max(gpnmax, lastgpns[i]);
+                        }
+                        if (gpeucn2_after >= gpnmax) {
+                            post_inform = 3;
+                        }
+                    }
+
+                    if (post_inform < 0 && f_work <= *fmin) {
+                        post_inform = 4;
+                    } else if (post_inform < 0 && iter_work >= *maxit) {
+                        post_inform = 7;
+                    } else if (post_inform < 0 && fcnt_work >= *maxfc) {
+                        post_inform = 8;
+                    }
+
+                    if (post_inform >= 0) {
+                        *f = f_work;
+                        for (int i = 0; i < n_val; ++i) {
+                            x[i] = x_work[i];
+                            g[i] = g_work[i];
+                            s[i] = s_work[i];
+                            y[i] = y_work[i];
+                            d[i] = d_work[i];
+                        }
+                        for (int i = 0; i < nind_after; ++i) {
+                            ind[i] = ind_work[i];
+                        }
+                        *gpeucn2 = gpeucn2_after;
+                        *gpsupn = gpsupn_after;
+                        *iter = iter_work;
+                        *fcnt = fcnt_work;
+                        *gcnt = gcnt_work;
+                        *cgcnt = cgcnt_work;
+                        *spgiter = spgiter_work;
+                        *spgfcnt = spgfcnt_work;
+                        *tniter = tniter_work;
+                        *tnfcnt = tnfcnt_work;
+                        *tnstpcnt = tnstpcnt_work;
+                        *tnintcnt = tnintcnt_work;
+                        *tnexgcnt = tnexgcnt_work;
+                        *tnexbcnt = tnexbcnt_work;
+                        *tnintfe = tnintfe_work;
+                        *tnexgfe = tnexgfe_work;
+                        *tnexbfe = tnexbfe_work;
+                        if (*maxitngp > 0) {
+                            lastgpns[iter_work % (*maxitngp)] = gpeucn2_after;
+                        }
+                        *inform = post_inform;
+                        return;
+                    }
+                    fallback_reason = "spg_post_nonterminal";
+                } else {
+                    std::vector<double> x_work = x_try;
+                    std::vector<double> g_work = g_try;
+                    std::vector<double> l_work(n_val);
+                    std::vector<double> u_work(n_val);
+                    for (int i = 0; i < n_val; ++i) {
+                        l_work[i] = l[i];
+                        u_work[i] = u[i];
+                    }
+
+                    const int nind_work = nind_try;
+                    if (nind_work > 0) {
+                        shrink_inplace(nind_work, ind_try.data(), x_work.data());
+                        shrink_inplace(nind_work, ind_try.data(), g_work.data());
+                        shrink_inplace(nind_work, ind_try.data(), l_work.data());
+                        shrink_inplace(nind_work, ind_try.data(), u_work.data());
+
+                        int iter_work = 1;
+                        int fcnt_work = 1;
+                        int gcnt_work = 1;
+                        int cgcnt_work = 0;
+                        int spgiter_work = 0;
+                        int spgfcnt_work = 0;
+                        int tniter_work = 1;
+                        int tnfcnt_work = 0;
+                        int tnstpcnt_work = 0;
+                        int tnintcnt_work = 0;
+                        int tnexgcnt_work = 0;
+                        int tnexbcnt_work = 0;
+                        int tnintfe_work = 0;
+                        int tnexgfe_work = 0;
+                        int tnexbfe_work = 0;
+
+                        const double xnorm_try = std::sqrt(norm2_kernel(n_val, x_try.data()));
+                        double delta = 0.0;
+                        if (*udelta0 <= 0.0) {
+                            delta = std::max(*delmin, 0.1 * std::max(1.0, xnorm_try));
+                        } else {
+                            delta = *udelta0;
+                        }
+
+                        double acgeps = 0.0;
+                        double bcgeps = 0.0;
+                        gp_ieee_signal1_cpp(
+                            gpsupn_try, &acgeps, &bcgeps, *cgepsf, *cgepsi, *cggpnf
+                        );
+
+                        const double epsgpen2 = (*epsgpen) * (*epsgpen);
+                        const double gpeucn20 = gpeucn2_try;
+                        const double gpsupn0 = gpsupn_try;
+                        double kappa = 0.0;
+                        double cgeps = *cgepsf;
+                        int cgmaxit = 0;
+                        gp_ieee_signal2_cpp(
+                            &cgmaxit, nind_work, *nearlyq, *ucgmaxit, *cgscre, &kappa, gpeucn2_try,
+                            gpeucn20, epsgpen2, *epsgpsn, &cgeps, acgeps, bcgeps, *cgepsf, *cgepsi,
+                            gpsupn_try, gpsupn0
+                        );
+
+                        std::vector<double> cg_s(n_val, 0.0);
+                        std::vector<double> cg_w(n_val, 0.0);
+                        std::vector<double> cg_y(n_val, 0.0);
+                        std::vector<double> cg_r(n_val, 0.0);
+                        std::vector<double> cg_d(n_val, 0.0);
+                        std::vector<double> cg_sprev(n_val, 0.0);
+
+                        int cg_iter = 0;
+                        int rbdtype = 0;
+                        int rbdind = 0;
+                        int cg_inform = 0;
+                        packmol_gencan_cg_bridge(
+                            &nind_work, ind_try.data(), n, x_work.data(), m, lambda, rho, g_work.data(),
+                            &delta, l_work.data(), u_work.data(), &cgeps, epsnqmp, maxitnqmp, &cgmaxit,
+                            nearlyq, gtype, htvtype, trtype, iprint, ncomp, cg_s.data(), &cg_iter, &rbdtype,
+                            &rbdind, &cg_inform, cg_w.data(), cg_y.data(), cg_r.data(), cg_d.data(),
+                            cg_sprev.data(), theta, sterel, steabs, epsrel, epsabs, infrel, infabs
+                        );
+                        cgcnt_work += cg_iter;
+
+                        if (cg_inform < 0) {
+                            *f = f_try;
+                            for (int i = 0; i < n_val; ++i) {
+                                x[i] = x_work[i];
+                                g[i] = g_work[i];
+                            }
+                            *iter = iter_work;
+                            *fcnt = fcnt_work;
+                            *gcnt = gcnt_work;
+                            *cgcnt = cgcnt_work;
+                            *spgiter = spgiter_work;
+                            *spgfcnt = spgfcnt_work;
+                            *tniter = tniter_work;
+                            *tnfcnt = tnfcnt_work;
+                            *tnstpcnt = tnstpcnt_work;
+                            *tnintcnt = tnintcnt_work;
+                            *tnexgcnt = tnexgcnt_work;
+                            *tnexbcnt = tnexbcnt_work;
+                            *tnintfe = tnintfe_work;
+                            *tnexgfe = tnexgfe_work;
+                            *tnexbfe = tnexbfe_work;
+                            *inform = cg_inform;
+                            return;
+                        }
+
+                        if (cg_inform >= 0) {
+                            double amax = *infabs;
+                            if (cg_inform == 2) {
+                                amax = 1.0;
+                            } else {
+                                for (int i = 0; i < nind_work; ++i) {
+                                    if (cg_s[i] > 0.0) {
+                                        const double amaxx = (u_work[i] - x_work[i]) / cg_s[i];
+                                        if (amaxx < amax) {
+                                            amax = amaxx;
+                                            rbdind = i + 1;
+                                            rbdtype = 2;
+                                        }
+                                    } else if (cg_s[i] < 0.0) {
+                                        const double amaxx = (l_work[i] - x_work[i]) / cg_s[i];
+                                        if (amaxx < amax) {
+                                            amax = amaxx;
+                                            rbdind = i + 1;
+                                            rbdtype = 1;
+                                        }
+                                    }
+                                }
+                            }
+
+                            int tnls_inform = 0;
+                            const int tnint_prev = tnintcnt_work;
+                            const int tnexg_prev = tnexgcnt_work;
+                            const int tnexb_prev = tnexbcnt_work;
+                            const int fcnt_prev = fcnt_work;
+                            double f_work = f_try;
+                            std::vector<double> xplus(n_val, 0.0);
+                            std::vector<double> xtmp(n_val, 0.0);
+                            std::vector<double> xbext(n_val, 0.0);
+                            packmol_gencan_tnls_bridge(
+                                &nind_work, ind_try.data(), n, x_work.data(), m, lambda, rho, l_work.data(),
+                                u_work.data(), &f_work, g_work.data(), cg_s.data(), &amax, &rbdtype, &rbdind,
+                                nint, next, mininterp, maxextrap, fmin, maxfc, gtype, iprint, &fcnt_work,
+                                &gcnt_work, &tnintcnt_work, &tnexgcnt_work, &tnexbcnt_work, &tnls_inform,
+                                xplus.data(), xtmp.data(), xbext.data(), gamma, beta, sigma1, sigma2, sterel,
+                                steabs, epsrel, epsabs, infrel, infabs
+                            );
+
+                            if (tnls_inform < 0) {
+                                *f = f_work;
+                                for (int i = 0; i < n_val; ++i) {
+                                    x[i] = x_work[i];
+                                    g[i] = g_work[i];
+                                }
+                                *iter = iter_work;
+                                *fcnt = fcnt_work;
+                                *gcnt = gcnt_work;
+                                *cgcnt = cgcnt_work;
+                                *spgiter = spgiter_work;
+                                *spgfcnt = spgfcnt_work;
+                                *tniter = tniter_work;
+                                *tnfcnt = tnfcnt_work;
+                                *tnstpcnt = tnstpcnt_work;
+                                *tnintcnt = tnintcnt_work;
+                                *tnexgcnt = tnexgcnt_work;
+                                *tnexbcnt = tnexbcnt_work;
+                                *tnintfe = tnintfe_work;
+                                *tnexgfe = tnexgfe_work;
+                                *tnexbfe = tnexbfe_work;
+                                *inform = tnls_inform;
+                                return;
+                            }
+
+                            if (tnls_inform >= 0) {
+                                if (tnintcnt_work > tnint_prev) {
+                                    tnintfe_work += (fcnt_work - fcnt_prev);
+                                } else if (tnexgcnt_work > tnexg_prev) {
+                                    tnexgfe_work += (fcnt_work - fcnt_prev);
+                                } else if (tnexbcnt_work > tnexb_prev) {
+                                    tnexbfe_work += (fcnt_work - fcnt_prev);
+                                } else {
+                                    tnstpcnt_work += 1;
+                                }
+                                tnfcnt_work += (fcnt_work - fcnt_prev);
+
+                                expand_inplace(nind_work, ind_try.data(), x_work.data());
+                                expand_inplace(nind_work, ind_try.data(), g_work.data());
+                                expand_inplace(nind_work, ind_try.data(), l_work.data());
+                                expand_inplace(nind_work, ind_try.data(), u_work.data());
+
+                                for (int i = 0; i < n_val; ++i) {
+                                    if (x_work[i] <= l_work[i] + std::max((*epsrel) * std::abs(l_work[i]), *epsabs)) {
+                                        x_work[i] = l_work[i];
+                                    } else if (x_work[i] >= u_work[i] - std::max((*epsrel) * std::abs(u_work[i]), *epsabs)) {
+                                        x_work[i] = u_work[i];
+                                    }
+                                }
+
+                                int line_inform = tnls_inform;
+                                if (tnls_inform == 6) {
+                                    spgiter_work += 1;
+                                    double xnorm_for_spg = std::sqrt(norm2_kernel(n_val, x_work.data()));
+                                    double lamspg = std::max(1.0, xnorm_for_spg) / std::sqrt(gpeucn2_try);
+                                    lamspg = std::min(*lspgma, std::max(*lspgmi, lamspg));
+
+                                    const int fcnt_prev_spg = fcnt_work;
+                                    spgls_cpp(
+                                        n, x_work.data(), m, lambda, rho, &f_work, g_work.data(), l_work.data(),
+                                        u_work.data(), &lamspg, nint, mininterp, fmin, maxfc, &fcnt_work,
+                                        &line_inform, xplus.data(), xtmp.data(), gamma, sigma1, sigma2, epsrel,
+                                        epsabs
+                                    );
+                                    spgfcnt_work += (fcnt_work - fcnt_prev_spg);
+
+                                    if (line_inform < 0) {
+                                        *f = f_work;
+                                        for (int i = 0; i < n_val; ++i) {
+                                            x[i] = x_work[i];
+                                            g[i] = g_work[i];
+                                        }
+                                        *iter = iter_work;
+                                        *fcnt = fcnt_work;
+                                        *gcnt = gcnt_work;
+                                        *cgcnt = cgcnt_work;
+                                        *spgiter = spgiter_work;
+                                        *spgfcnt = spgfcnt_work;
+                                        *tniter = tniter_work;
+                                        *tnfcnt = tnfcnt_work;
+                                        *tnstpcnt = tnstpcnt_work;
+                                        *tnintcnt = tnintcnt_work;
+                                        *tnexgcnt = tnexgcnt_work;
+                                        *tnexbcnt = tnexbcnt_work;
+                                        *tnintfe = tnintfe_work;
+                                        *tnexgfe = tnexgfe_work;
+                                        *tnexbfe = tnexbfe_work;
+                                        *inform = line_inform;
+                                        return;
+                                    }
+
+                                    int grad_after_spg = 0;
+                                    if (*gtype == 0) {
+                                        packmol_calcg_fortran_c(
+                                            n, ind_all.data(), x_work.data(), &n_val, x_work.data(), &m_val,
+                                            lambda, rho, g_work.data(), &grad_after_spg
+                                        );
+                                    } else {
+                                        packmol_calcgdiff_fortran_c(
+                                            n, ind_all.data(), x_work.data(), &n_val, x_work.data(), &m_val,
+                                            lambda, rho, g_work.data(), sterel, steabs, &grad_after_spg
+                                        );
+                                    }
+                                    gcnt_work += 1;
+
+                                    if (grad_after_spg < 0) {
+                                        *f = f_work;
+                                        for (int i = 0; i < n_val; ++i) {
+                                            x[i] = x_work[i];
+                                            g[i] = g_work[i];
+                                        }
+                                        *iter = iter_work;
+                                        *fcnt = fcnt_work;
+                                        *gcnt = gcnt_work;
+                                        *cgcnt = cgcnt_work;
+                                        *spgiter = spgiter_work;
+                                        *spgfcnt = spgfcnt_work;
+                                        *tniter = tniter_work;
+                                        *tnfcnt = tnfcnt_work;
+                                        *tnstpcnt = tnstpcnt_work;
+                                        *tnintcnt = tnintcnt_work;
+                                        *tnexgcnt = tnexgcnt_work;
+                                        *tnexbcnt = tnexbcnt_work;
+                                        *tnintfe = tnintfe_work;
+                                        *tnexgfe = tnexgfe_work;
+                                        *tnexbfe = tnexbfe_work;
+                                        *inform = grad_after_spg;
+                                        return;
+                                    }
+                                }
+
+                                double gpsupn_after = 0.0;
+                                double gpeucn2_after = 0.0;
+                                for (int i = 0; i < n_val; ++i) {
+                                    const double xpg = x_work[i] - g_work[i];
+                                    const double gpi = std::min(u_work[i], std::max(l_work[i], xpg)) - x_work[i];
+                                    gpsupn_after = std::max(gpsupn_after, std::abs(gpi));
+                                    gpeucn2_after += gpi * gpi;
+                                }
+
+                                bool precision_after = false;
+                                packmol_packmolprecision_fortran_c(n, x_work.data(), &precision_after);
+                                int post_inform = -1;
+                                if (precision_after) {
+                                    post_inform = line_inform;
+                                } else if (line_inform == 6) {
+                                    post_inform = 6;
+                                } else if (gpeucn2_after <= (*epsgpen) * (*epsgpen)) {
+                                    post_inform = 0;
+                                } else if (gpsupn_after <= *epsgpsn) {
+                                    post_inform = 1;
+                                } else {
+                                    const double currprog = f_try - f_work;
+                                    const double bestprog = std::max(currprog, 0.0);
+                                    int itnfp = 0;
+                                    if (currprog <= (*epsnfp) * bestprog) {
+                                        itnfp += 1;
+                                        if (itnfp >= *maxitnfp) {
+                                            post_inform = 2;
+                                        }
+                                    }
+                                }
+
+                                if (post_inform < 0) {
+                                    double gpnmax = *infabs;
+                                    for (int i = 0; i < *maxitngp; ++i) {
+                                        gpnmax = std::max(gpnmax, lastgpns[i]);
+                                    }
+                                    if (gpeucn2_after >= gpnmax) {
+                                        post_inform = 3;
+                                    }
+                                }
+
+                                if (post_inform < 0 && f_work <= *fmin) {
+                                    post_inform = 4;
+                                } else if (post_inform < 0 && iter_work >= *maxit) {
+                                    post_inform = 7;
+                                } else if (post_inform < 0 && fcnt_work >= *maxfc) {
+                                    post_inform = 8;
+                                }
+
+                                if (post_inform >= 0) {
+                                    *f = f_work;
+                                    for (int i = 0; i < n_val; ++i) {
+                                        x[i] = x_work[i];
+                                        g[i] = g_work[i];
+                                        s[i] = 0.0;
+                                        y[i] = 0.0;
+                                        d[i] = 0.0;
+                                    }
+                                    int nind_after = 0;
+                                    for (int i = 0; i < n_val; ++i) {
+                                        if (x_work[i] > l[i] && x_work[i] < u[i]) {
+                                            ind[nind_after] = i + 1;
+                                            nind_after += 1;
+                                        }
+                                    }
+                                    *gpeucn2 = gpeucn2_after;
+                                    *gpsupn = gpsupn_after;
+                                    *iter = iter_work;
+                                    *fcnt = fcnt_work;
+                                    *gcnt = gcnt_work;
+                                    *cgcnt = cgcnt_work;
+                                    *spgiter = spgiter_work;
+                                    *spgfcnt = spgfcnt_work;
+                                    *tniter = tniter_work;
+                                    *tnfcnt = tnfcnt_work;
+                                    *tnstpcnt = tnstpcnt_work;
+                                    *tnintcnt = tnintcnt_work;
+                                    *tnexgcnt = tnexgcnt_work;
+                                    *tnexbcnt = tnexbcnt_work;
+                                    *tnintfe = tnintfe_work;
+                                    *tnexgfe = tnexgfe_work;
+                                    *tnexbfe = tnexbfe_work;
+                                    if (*maxitngp > 0) {
+                                        lastgpns[iter_work % (*maxitngp)] = gpeucn2_after;
+                                    }
+                                    *inform = post_inform;
+                                    return;
+                                }
+                                fallback_reason = "tn_post_nonterminal";
+                            }
+                        }
+                    } else {
+                        fallback_reason = "tn_no_free_variables";
+                    }
+                }
+            } else {
+                fallback_reason = "entry_grad_flag_nonzero";
+            }
+
+            if (gencan_debug_enabled()) {
+                std::fprintf(
+                    stderr,
+                    "[gencan-cpp-fallback] reason=%s mode=%d\n",
+                    fallback_reason,
+                    static_cast<int>(active_impl_mode())
+                );
+            }
+            packmol_gencan_fortran_c(
+                n, x, l, u, m, lambda, rho, epsgpen, epsgpsn, maxitnfp, epsnfp,
+                maxitngp, fmin, maxit, maxfc, udelta0, ucgmaxit, cgscre, cggpnf,
+                cgepsi, cgepsf, epsnqmp, maxitnqmp, nearlyq, nint, next, mininterp,
+                maxextrap, gtype, htvtype, trtype, iprint, ncomp, f, g, gpeucn2,
+                gpsupn, iter, fcnt, gcnt, cgcnt, spgiter, spgfcnt, tniter, tnfcnt,
+                tnstpcnt, tnintcnt, tnexgcnt, tnexbcnt, tnintfe, tnexgfe, tnexbfe,
+                inform, s, y, d, ind, lastgpns, w, eta, delmin, lspgma, lspgmi,
+                theta, gamma, beta, sigma1, sigma2, sterel, steabs, epsrel, epsabs,
+                infrel, infabs
+            );
+            return;
+        }
     }
 }
