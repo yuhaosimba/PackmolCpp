@@ -951,3 +951,14 @@ Runtime AB gate stabilization (fixture parity + controlled fallback reasons):
   - `tests/gencan/check_gencan_ab_no_fallback.py` now enforces an allowlist of known fallback reasons.
   - current allowed reason set: `tn_post_nonterminal`.
   - any new fallback reason still fails the gate.
+
+TN fallback shadow instrumentation increment (debug-only):
+
+- Added opt-in runtime shadow telemetry for `tn_post_nonterminal` fallback:
+  - env: `PACKMOL_GENCAN_TN_POST_SHADOW=1`
+  - scope: only when bridge enters `tn_post_nonterminal` fallback path.
+- Emitted debug line:
+  - `[gencan-tn-post-shadow] ...`
+  - includes mode, pre/post inform, counter deltas, objective delta, and max state deltas (`x`, `g`).
+- Purpose:
+  - provide concrete data to guide next-step elimination of the TN post-nonterminal fallback without changing default runtime behavior.

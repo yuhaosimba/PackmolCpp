@@ -90,6 +90,14 @@ bool use_easy_cpp_draft() {
     return !(env[0] == '0' || env[0] == 'f' || env[0] == 'F' || env[0] == 'n' || env[0] == 'N');
 }
 
+bool tn_post_shadow_enabled() {
+    const char* env = std::getenv("PACKMOL_GENCAN_TN_POST_SHADOW");
+    if (env == nullptr) {
+        return false;
+    }
+    return env[0] == '1' || env[0] == 't' || env[0] == 'T' || env[0] == 'y' || env[0] == 'Y';
+}
+
 void shrink_inplace(const int nind, const int* ind, double* v) {
     for (int i = 1; i <= nind; ++i) {
         const int indi = ind[i - 1];
@@ -2754,6 +2762,30 @@ extern "C" void packmol_gencan_gencan_bridge(
                     static_cast<int>(active_impl_mode())
                 );
             }
+            const bool tn_shadow =
+                tn_post_shadow_enabled() && std::string(fallback_reason) == "tn_post_nonterminal";
+            std::vector<double> x_before;
+            std::vector<double> g_before;
+            double f_before = 0.0;
+            int inform_before = 0;
+            int iter_before = 0;
+            int fcnt_before = 0;
+            int gcnt_before = 0;
+            int cgcnt_before = 0;
+            int spgiter_before = 0;
+            int tniter_before = 0;
+            if (tn_shadow) {
+                x_before.assign(x, x + n_val);
+                g_before.assign(g, g + n_val);
+                f_before = *f;
+                inform_before = *inform;
+                iter_before = *iter;
+                fcnt_before = *fcnt;
+                gcnt_before = *gcnt;
+                cgcnt_before = *cgcnt;
+                spgiter_before = *spgiter;
+                tniter_before = *tniter;
+            }
             packmol_gencan_fortran_c(
                 n, x, l, u, m, lambda, rho, epsgpen, epsgpsn, maxitnfp, epsnfp,
                 maxitngp, fmin, maxit, maxfc, udelta0, ucgmaxit, cgscre, cggpnf,
@@ -2765,6 +2797,30 @@ extern "C" void packmol_gencan_gencan_bridge(
                 theta, gamma, beta, sigma1, sigma2, sterel, steabs, epsrel, epsabs,
                 infrel, infabs
             );
+            if (tn_shadow) {
+                double max_abs_dx = 0.0;
+                double max_abs_dg = 0.0;
+                for (int i = 0; i < n_val; ++i) {
+                    max_abs_dx = std::max(max_abs_dx, std::abs(x[i] - x_before[i]));
+                    max_abs_dg = std::max(max_abs_dg, std::abs(g[i] - g_before[i]));
+                }
+                std::fprintf(
+                    stderr,
+                    "[gencan-tn-post-shadow] mode=%d inform:%d->%d iter:+%d fcnt:+%d gcnt:+%d cgcnt:+%d spgiter:+%d tniter:+%d df=%.16e max|dx|=%.16e max|dg|=%.16e\n",
+                    static_cast<int>(active_impl_mode()),
+                    inform_before,
+                    *inform,
+                    *iter - iter_before,
+                    *fcnt - fcnt_before,
+                    *gcnt - gcnt_before,
+                    *cgcnt - cgcnt_before,
+                    *spgiter - spgiter_before,
+                    *tniter - tniter_before,
+                    *f - f_before,
+                    max_abs_dx,
+                    max_abs_dg
+                );
+            }
             return;
         }
     }
