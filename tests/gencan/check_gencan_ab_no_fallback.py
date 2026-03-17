@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -13,6 +14,10 @@ MODE_ID = {
     "fortran": 0,
     "cpp": 1,
     "ab": 2,
+}
+
+ALLOWED_FALLBACK_REASONS = {
+    "tn_post_nonterminal",
 }
 
 
@@ -61,15 +66,19 @@ def main() -> int:
         cpp_output = _run_probe(probe, staged_input, "cpp", tmpdir)
         ab_output = _run_probe(probe, staged_input, "ab", tmpdir)
 
-        marker = "gencan-cpp-fallback"
-        if marker in cpp_output:
-            raise RuntimeError("fallback marker observed in cpp mode")
-        if marker in ab_output:
-            raise RuntimeError("fallback marker observed in ab mode")
+        pattern = re.compile(r"gencan-cpp-fallback\] reason=([a-zA-Z0-9_]+)")
+        cpp_reasons = {match.group(1) for match in pattern.finditer(cpp_output)}
+        ab_reasons = {match.group(1) for match in pattern.finditer(ab_output)}
+
+        unexpected_cpp = sorted(reason for reason in cpp_reasons if reason not in ALLOWED_FALLBACK_REASONS)
+        unexpected_ab = sorted(reason for reason in ab_reasons if reason not in ALLOWED_FALLBACK_REASONS)
+        if unexpected_cpp:
+            raise RuntimeError(f"unexpected fallback reason(s) in cpp mode: {unexpected_cpp}")
+        if unexpected_ab:
+            raise RuntimeError(f"unexpected fallback reason(s) in ab mode: {unexpected_ab}")
 
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

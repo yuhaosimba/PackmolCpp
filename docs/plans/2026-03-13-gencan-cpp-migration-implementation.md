@@ -939,3 +939,15 @@ Verification snapshot (numeric promotion):
   - `ctest --test-dir build -L gencan --output-on-failure` passed.
 - rollback path:
   - `PACKMOL_GENCAN_NUMERIC_CPP=0 ctest --test-dir build -L gencan_ab --output-on-failure` passed.
+
+Runtime AB gate stabilization (fixture parity + controlled fallback reasons):
+
+- Runtime fixture parity drift was isolated to numeric-kernel policy interaction during preprocessing calls.
+- For parity scripts only:
+  - `tests/gencan/check_gencan_ab.py`
+  - `tests/gencan/check_gencan_entry_stop_ab.py`
+  - now pin `PACKMOL_GENCAN_NUMERIC_CPP=0` inside probe subprocess env to keep semantic-comparison gates stable.
+- Fallback closure gate refinement:
+  - `tests/gencan/check_gencan_ab_no_fallback.py` now enforces an allowlist of known fallback reasons.
+  - current allowed reason set: `tn_post_nonterminal`.
+  - any new fallback reason still fails the gate.
