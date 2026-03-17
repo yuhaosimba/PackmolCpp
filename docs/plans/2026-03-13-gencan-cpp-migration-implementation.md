@@ -1069,3 +1069,12 @@ Reduced-wrapper migration increment (`calcg/calcgdiff` in C++ for TNLS path):
   - `calcg_cpp_reduced(...)` now performs `complete -> expand -> evalnal|evalnaldiff -> shrink`.
 - Scope:
   - further removes Fortran reduced-wrapper dependence from C++ TN line-search internals while keeping existing callback interfaces.
+
+Reduced-wrapper migration increment (`calchddiff` orchestration in C++ for CG path):
+
+- Replaced `packmol_calchddiff_fortran_c` call in `cg_cpp_full` (`htvtype=1`) with C++ implementation:
+  - new helper `calchddiff_cpp_reduced(...)` computes directional finite-difference step and Hessian-vector approximation in-bridge.
+  - keeps gradient backend semantics by reusing `packmol_calcg_fortran_c/packmol_calcgdiff_fortran_c` for the auxiliary gradient at `x + step*d`.
+- Scope:
+  - removes one Fortran reduced-wrapper entry from CG core loop while preserving behavior.
+  - `htvtype=0` (`calchd`) remains on existing Fortran path for now.

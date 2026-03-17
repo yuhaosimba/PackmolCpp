@@ -681,6 +681,59 @@ void calcg_cpp_reduced(
     shrink_inplace(nind_val, ind, g);
 }
 
+void calchddiff_cpp_reduced(
+    const int* nind,
+    const int* ind,
+    const int* n,
+    double* x,
+    double* d,
+    double* g,
+    const int* m,
+    const double* lambda,
+    const double* rho,
+    const int* gtype,
+    double* hd,
+    double* xtmp,
+    const double* sterel,
+    const double* steabs,
+    int* inform
+) {
+    const int nind_val = *nind;
+    const int n_val = *n;
+
+    *inform = 0;
+    double xsupn = 0.0;
+    double dsupn = 0.0;
+    for (int i = 0; i < nind_val; ++i) {
+        xsupn = std::max(xsupn, std::abs(x[i]));
+        dsupn = std::max(dsupn, std::abs(d[i]));
+    }
+    if (dsupn < 1.0e-20) {
+        dsupn = 1.0e-20;
+    }
+    const double step = std::max((*sterel) * xsupn, *steabs) / dsupn;
+
+    for (int i = 0; i < nind_val; ++i) {
+        xtmp[i] = x[i] + step * d[i];
+    }
+
+    if (*gtype == 0) {
+        packmol_calcg_fortran_c(nind, ind, xtmp, n, x, m, lambda, rho, hd, inform);
+    } else {
+        packmol_calcgdiff_fortran_c(nind, ind, xtmp, n, x, m, lambda, rho, hd, sterel, steabs, inform);
+    }
+    if (*inform < 0) {
+        return;
+    }
+
+    for (int i = 0; i < nind_val; ++i) {
+        hd[i] = (hd[i] - g[i]) / step;
+    }
+    for (int i = nind_val; i < n_val; ++i) {
+        hd[i] = 0.0;
+    }
+}
+
 void spgls_cpp(
     const int* n,
     double* x,
@@ -1177,8 +1230,8 @@ void cg_cpp_full(
                 nind, ind, x, d, g, n, x, m, lambda, rho, w, y, sterel, steabs, inform
             );
         } else if (*htvtype == 1) {
-            packmol_calchddiff_fortran_c(
-                nind, ind, x, d, g, n, x, m, lambda, rho, gtype, w, y, sterel, steabs, inform
+            calchddiff_cpp_reduced(
+                nind, ind, n, x, d, g, m, lambda, rho, gtype, w, y, sterel, steabs, inform
             );
         } else {
             *inform = -1;
