@@ -184,6 +184,68 @@ void gp_ieee_signal2_cpp(
     *cgeps = std::max(cgepsf, std::min(cgepsi, *cgeps));
 }
 
+int evaluate_post_step_inform_cpp(
+    const bool precision_after,
+    const int line_inform,
+    const double gpeucn2_after,
+    const double epsgpen,
+    const double gpsupn_after,
+    const double epsgpsn,
+    const double f_before,
+    const double f_after,
+    const double epsnfp,
+    const int maxitnfp,
+    const double infabs,
+    const double* lastgpns,
+    const int maxitngp,
+    const double fmin,
+    const int iter_value,
+    const int maxit,
+    const int fcnt_value,
+    const int maxfc
+) {
+    int post_inform = -1;
+    if (precision_after) {
+        post_inform = line_inform;
+    } else if (line_inform == 6) {
+        post_inform = 6;
+    } else if (gpeucn2_after <= epsgpen * epsgpen) {
+        post_inform = 0;
+    } else if (gpsupn_after <= epsgpsn) {
+        post_inform = 1;
+    } else {
+        const double currprog = f_before - f_after;
+        const double bestprog = std::max(currprog, 0.0);
+        int itnfp = 0;
+        if (currprog <= epsnfp * bestprog) {
+            itnfp += 1;
+            if (itnfp >= maxitnfp) {
+                post_inform = 2;
+            }
+        }
+    }
+
+    if (post_inform < 0) {
+        double gpnmax = infabs;
+        for (int i = 0; i < maxitngp; ++i) {
+            gpnmax = std::max(gpnmax, lastgpns[i]);
+        }
+        if (gpeucn2_after >= gpnmax) {
+            post_inform = 3;
+        }
+    }
+
+    if (post_inform < 0 && f_after <= fmin) {
+        post_inform = 4;
+    } else if (post_inform < 0 && iter_value >= maxit) {
+        post_inform = 7;
+    } else if (post_inform < 0 && fcnt_value >= maxfc) {
+        post_inform = 8;
+    }
+
+    return post_inform;
+}
+
 }  // namespace
 
 extern "C" int packmol_gencan_cpp_probe(int n, const double* x, double* fx_out) {
@@ -2320,42 +2382,26 @@ extern "C" void packmol_gencan_gencan_bridge(
 
                     bool precision_after_spg = false;
                     packmol_packmolprecision_fortran_c(n, x_work.data(), &precision_after_spg);
-                    int post_inform = -1;
-                    if (precision_after_spg) {
-                        post_inform = ls_inform;
-                    } else if (gpeucn2_after <= (*epsgpen) * (*epsgpen)) {
-                        post_inform = 0;
-                    } else if (gpsupn_after <= *epsgpsn) {
-                        post_inform = 1;
-                    } else {
-                        const double currprog = f_try - f_work;
-                        const double bestprog = std::max(currprog, 0.0);
-                        int itnfp = 0;
-                        if (currprog <= (*epsnfp) * bestprog) {
-                            itnfp += 1;
-                            if (itnfp >= *maxitnfp) {
-                                post_inform = 2;
-                            }
-                        }
-                    }
-
-                    if (post_inform < 0) {
-                        double gpnmax = *infabs;
-                        for (int i = 0; i < *maxitngp; ++i) {
-                            gpnmax = std::max(gpnmax, lastgpns[i]);
-                        }
-                        if (gpeucn2_after >= gpnmax) {
-                            post_inform = 3;
-                        }
-                    }
-
-                    if (post_inform < 0 && f_work <= *fmin) {
-                        post_inform = 4;
-                    } else if (post_inform < 0 && iter_work >= *maxit) {
-                        post_inform = 7;
-                    } else if (post_inform < 0 && fcnt_work >= *maxfc) {
-                        post_inform = 8;
-                    }
+                    const int post_inform = evaluate_post_step_inform_cpp(
+                        precision_after_spg,
+                        ls_inform,
+                        gpeucn2_after,
+                        *epsgpen,
+                        gpsupn_after,
+                        *epsgpsn,
+                        f_try,
+                        f_work,
+                        *epsnfp,
+                        *maxitnfp,
+                        *infabs,
+                        lastgpns,
+                        *maxitngp,
+                        *fmin,
+                        iter_work,
+                        *maxit,
+                        fcnt_work,
+                        *maxfc
+                    );
 
                     spg_post_debug_captured = true;
                     spg_post_line_inform = ls_inform;
@@ -2690,44 +2736,26 @@ extern "C" void packmol_gencan_gencan_bridge(
 
                                 bool precision_after = false;
                                 packmol_packmolprecision_fortran_c(n, x_work.data(), &precision_after);
-                                int post_inform = -1;
-                                if (precision_after) {
-                                    post_inform = line_inform;
-                                } else if (line_inform == 6) {
-                                    post_inform = 6;
-                                } else if (gpeucn2_after <= (*epsgpen) * (*epsgpen)) {
-                                    post_inform = 0;
-                                } else if (gpsupn_after <= *epsgpsn) {
-                                    post_inform = 1;
-                                } else {
-                                    const double currprog = f_try - f_work;
-                                    const double bestprog = std::max(currprog, 0.0);
-                                    int itnfp = 0;
-                                    if (currprog <= (*epsnfp) * bestprog) {
-                                        itnfp += 1;
-                                        if (itnfp >= *maxitnfp) {
-                                            post_inform = 2;
-                                        }
-                                    }
-                                }
-
-                                if (post_inform < 0) {
-                                    double gpnmax = *infabs;
-                                    for (int i = 0; i < *maxitngp; ++i) {
-                                        gpnmax = std::max(gpnmax, lastgpns[i]);
-                                    }
-                                    if (gpeucn2_after >= gpnmax) {
-                                        post_inform = 3;
-                                    }
-                                }
-
-                                if (post_inform < 0 && f_work <= *fmin) {
-                                    post_inform = 4;
-                                } else if (post_inform < 0 && iter_work >= *maxit) {
-                                    post_inform = 7;
-                                } else if (post_inform < 0 && fcnt_work >= *maxfc) {
-                                    post_inform = 8;
-                                }
+                                const int post_inform = evaluate_post_step_inform_cpp(
+                                    precision_after,
+                                    line_inform,
+                                    gpeucn2_after,
+                                    *epsgpen,
+                                    gpsupn_after,
+                                    *epsgpsn,
+                                    f_try,
+                                    f_work,
+                                    *epsnfp,
+                                    *maxitnfp,
+                                    *infabs,
+                                    lastgpns,
+                                    *maxitngp,
+                                    *fmin,
+                                    iter_work,
+                                    *maxit,
+                                    fcnt_work,
+                                    *maxfc
+                                );
 
                                 tn_post_debug_captured = true;
                                 tn_post_line_inform = line_inform;

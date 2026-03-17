@@ -989,3 +989,13 @@ SPG post-nonterminal diagnostics enrichment (no behavior change):
   - fields: `line_inform`, `post_inform`, `nind`, `f_before`, `f_after`, `gpsupn`, `gpeucn2`.
 - Purpose:
   - align SPG/TN fallback observability so both remaining continuation-style fallback points can be closed under the same metric-driven workflow.
+
+Post-step stop-policy helper extraction (no behavior change):
+
+- Extracted duplicated SPG/TN post-step stopping logic into shared helper:
+  - `evaluate_post_step_inform_cpp(...)`
+- Scope:
+  - only internal C++ bridge refactor; no interface changes.
+  - SPG and TN branches now call the same helper for `inform` decision after a step.
+- Purpose:
+  - reduces divergence risk between SPG/TN paths and prepares controlled conversion of post-nonterminal fallback into in-bridge continuation loops.
