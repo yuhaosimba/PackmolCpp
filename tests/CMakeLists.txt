@@ -444,6 +444,28 @@ set_tests_properties(
     PROPERTIES
         LABELS "gencan;gencan_ab;gencan_draft"
 )
+add_test(
+    NAME test_gencan_ab_tn_retry_draft
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_gencan_ab.py
+        $<TARGET_FILE:test_gencan_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(
+    test_gencan_ab_tn_retry_draft
+    PROPERTIES
+        LABELS "gencan;gencan_ab;gencan_draft"
+        ENVIRONMENT "PACKMOL_GENCAN_TN_POST_RETRY_SPG=1"
+)
+add_test(
+    NAME test_gencan_ab_no_fallback_tn_retry_draft
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_gencan_ab_no_fallback.py
+        $<TARGET_FILE:test_gencan_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(
+    test_gencan_ab_no_fallback_tn_retry_draft
+    PROPERTIES
+        LABELS "gencan;gencan_ab;gencan_draft;gencan_closure"
+        ENVIRONMENT "PACKMOL_GENCAN_TN_POST_RETRY_SPG=1"
+)
 packmol_add_test(test_easygencan gencan/test_easygencan.f90 gencan)
 packmol_add_test(test_gencan_driver gencan/test_gencan_driver.f90 gencan)
 

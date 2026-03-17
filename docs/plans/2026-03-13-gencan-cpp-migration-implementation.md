@@ -1020,3 +1020,13 @@ TN post-nonterminal local-retry draft (default-off):
 - Default behavior remains unchanged when unset (`0`).
 - Intent:
   - shrink `tn_post_nonterminal` fallback incidence under controlled rollout while keeping Fortran fallback as safety net.
+
+TN retry rollout gates:
+
+- Added draft CI gates for retry mode:
+  - `test_gencan_ab_tn_retry_draft`
+    - env: `PACKMOL_GENCAN_TN_POST_RETRY_SPG=1`
+    - parity check against fortran/cpp/ab outputs.
+  - `test_gencan_ab_no_fallback_tn_retry_draft`
+    - env: `PACKMOL_GENCAN_TN_POST_RETRY_SPG=1`
+    - closure check ensures no fallback marker appears on current AB fixture corpus.
