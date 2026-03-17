@@ -999,3 +999,14 @@ Post-step stop-policy helper extraction (no behavior change):
   - SPG and TN branches now call the same helper for `inform` decision after a step.
 - Purpose:
   - reduces divergence risk between SPG/TN paths and prepares controlled conversion of post-nonterminal fallback into in-bridge continuation loops.
+
+Fallback seed-state draft hook (default-off):
+
+- Added optional bridge behavior for post-nonterminal fallback handoff:
+  - env: `PACKMOL_GENCAN_FALLBACK_SEED_STATE=1`
+  - when enabled and fallback reason is `spg_post_nonterminal` or `tn_post_nonterminal`,
+    C++ seeds `x` with the latest in-bridge trial state before invoking Fortran fallback.
+- Default remains unchanged (`off`), preserving existing runtime behavior.
+- Purpose:
+  - enable controlled A/B experiments that reduce restart-loss at fallback boundaries,
+    as a stepping stone toward full in-bridge continuation.

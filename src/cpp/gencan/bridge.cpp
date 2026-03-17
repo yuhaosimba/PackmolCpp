@@ -98,6 +98,14 @@ bool tn_post_shadow_enabled() {
     return env[0] == '1' || env[0] == 't' || env[0] == 'T' || env[0] == 'y' || env[0] == 'Y';
 }
 
+bool fallback_seed_state_enabled() {
+    const char* env = std::getenv("PACKMOL_GENCAN_FALLBACK_SEED_STATE");
+    if (env == nullptr) {
+        return false;
+    }
+    return env[0] == '1' || env[0] == 't' || env[0] == 'T' || env[0] == 'y' || env[0] == 'Y';
+}
+
 void shrink_inplace(const int nind, const int* ind, double* v) {
     for (int i = 1; i <= nind; ++i) {
         const int indi = ind[i - 1];
@@ -2009,6 +2017,9 @@ extern "C" void packmol_gencan_gencan_bridge(
             const int n_val = *n;
             const int m_val = *m;
             const char* fallback_reason = "cpp_nonterminal_continue";
+            std::vector<double> fallback_x_seed;
+            bool fallback_x_seed_valid = false;
+            const char* fallback_x_seed_reason = "";
             bool tn_post_debug_captured = false;
             int tn_post_line_inform = 0;
             int tn_post_post_inform = -1;
@@ -2448,6 +2459,9 @@ extern "C" void packmol_gencan_gencan_bridge(
                         return;
                     }
                     fallback_reason = "spg_post_nonterminal";
+                    fallback_x_seed = x_work;
+                    fallback_x_seed_valid = true;
+                    fallback_x_seed_reason = "spg_post_nonterminal";
                 } else {
                     std::vector<double> x_work = x_try;
                     std::vector<double> g_work = g_try;
@@ -2806,6 +2820,9 @@ extern "C" void packmol_gencan_gencan_bridge(
                                     return;
                                 }
                                 fallback_reason = "tn_post_nonterminal";
+                                fallback_x_seed = x_work;
+                                fallback_x_seed_valid = true;
+                                fallback_x_seed_reason = "tn_post_nonterminal";
                             }
                         }
                     } else {
@@ -2845,6 +2862,19 @@ extern "C" void packmol_gencan_gencan_bridge(
                         spg_post_f_after,
                         spg_post_gpsupn,
                         spg_post_gpeucn2
+                    );
+                }
+            }
+            if (fallback_seed_state_enabled() && fallback_x_seed_valid) {
+                for (int i = 0; i < n_val; ++i) {
+                    x[i] = fallback_x_seed[i];
+                }
+                if (gencan_debug_enabled()) {
+                    std::fprintf(
+                        stderr,
+                        "[gencan-cpp-fallback-seed] reason=%s mode=%d\n",
+                        fallback_x_seed_reason,
+                        static_cast<int>(active_impl_mode())
                     );
                 }
             }
