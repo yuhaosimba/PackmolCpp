@@ -1947,6 +1947,14 @@ extern "C" void packmol_gencan_gencan_bridge(
             const int n_val = *n;
             const int m_val = *m;
             const char* fallback_reason = "cpp_nonterminal_continue";
+            bool tn_post_debug_captured = false;
+            int tn_post_line_inform = 0;
+            int tn_post_post_inform = -1;
+            int tn_post_nind = 0;
+            double tn_post_f_before = 0.0;
+            double tn_post_f_after = 0.0;
+            double tn_post_gpsupn = 0.0;
+            double tn_post_gpeucn2 = 0.0;
 
             std::vector<double> x_try(n_val);
             std::vector<double> g_try(n_val, 0.0);
@@ -2704,6 +2712,15 @@ extern "C" void packmol_gencan_gencan_bridge(
                                     post_inform = 8;
                                 }
 
+                                tn_post_debug_captured = true;
+                                tn_post_line_inform = line_inform;
+                                tn_post_post_inform = post_inform;
+                                tn_post_nind = nind_work;
+                                tn_post_f_before = f_try;
+                                tn_post_f_after = f_work;
+                                tn_post_gpsupn = gpsupn_after;
+                                tn_post_gpeucn2 = gpeucn2_after;
+
                                 if (post_inform >= 0) {
                                     *f = f_work;
                                     for (int i = 0; i < n_val; ++i) {
@@ -2761,6 +2778,19 @@ extern "C" void packmol_gencan_gencan_bridge(
                     fallback_reason,
                     static_cast<int>(active_impl_mode())
                 );
+                if (std::string(fallback_reason) == "tn_post_nonterminal" && tn_post_debug_captured) {
+                    std::fprintf(
+                        stderr,
+                        "[gencan-cpp-fallback-tn-post] line_inform=%d post_inform=%d nind=%d f_before=%.16e f_after=%.16e gpsupn=%.16e gpeucn2=%.16e\n",
+                        tn_post_line_inform,
+                        tn_post_post_inform,
+                        tn_post_nind,
+                        tn_post_f_before,
+                        tn_post_f_after,
+                        tn_post_gpsupn,
+                        tn_post_gpeucn2
+                    );
+                }
             }
             const bool tn_shadow =
                 tn_post_shadow_enabled() && std::string(fallback_reason) == "tn_post_nonterminal";

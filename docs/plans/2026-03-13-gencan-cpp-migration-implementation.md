@@ -968,3 +968,11 @@ Entry gradient flag parity fix:
   - negative flags still terminate immediately as error returns.
 - Effect:
   - removes a residual C++-only semantic branch (`grad_flag > 0` forced fallback) while preserving existing error handling.
+
+TN post-nonterminal diagnostics enrichment (no behavior change):
+
+- Added structured debug payload when fallback reason is `tn_post_nonterminal`:
+  - marker: `[gencan-cpp-fallback-tn-post]`
+  - fields: `line_inform`, `post_inform`, `nind`, `f_before`, `f_after`, `gpsupn`, `gpeucn2`.
+- Purpose:
+  - capture the exact nonterminal envelope at fallback handoff so the next closure step can replace fallback branch-by-branch with measurable acceptance criteria.
