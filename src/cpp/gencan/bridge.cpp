@@ -343,6 +343,28 @@ extern "C" void packmol_evalal_fortran_c(
     int* flag
 );
 
+extern "C" void packmol_evalnal_fortran_c(
+    const int* n,
+    double* x,
+    const int* m,
+    const double* lambda,
+    const double* rho,
+    double* g,
+    int* flag
+);
+
+extern "C" void packmol_evalnaldiff_fortran_c(
+    const int* n,
+    double* x,
+    const int* m,
+    const double* lambda,
+    const double* rho,
+    double* g,
+    const double* sterel,
+    const double* steabs,
+    int* flag
+);
+
 extern "C" void packmol_packmolprecision_fortran_c(
     const int* n,
     const double* x,
@@ -629,6 +651,36 @@ void calcf_cpp_reduced(
     shrink_inplace(nind_val, ind, x);
 }
 
+void calcg_cpp_reduced(
+    const int* nind,
+    const int* ind,
+    double* x,
+    const int* n,
+    const double* xc,
+    const int* m,
+    const double* lambda,
+    const double* rho,
+    const int* gtype,
+    double* g,
+    const double* sterel,
+    const double* steabs,
+    int* inform
+) {
+    const int nind_val = *nind;
+    const int n_val = *n;
+    for (int i = nind_val; i < n_val; ++i) {
+        x[i] = xc[i];
+    }
+    expand_inplace(nind_val, ind, x);
+    if (*gtype == 0) {
+        packmol_evalnal_fortran_c(n, x, m, lambda, rho, g, inform);
+    } else {
+        packmol_evalnaldiff_fortran_c(n, x, m, lambda, rho, g, sterel, steabs, inform);
+    }
+    shrink_inplace(nind_val, ind, x);
+    shrink_inplace(nind_val, ind, g);
+}
+
 void spgls_cpp(
     const int* n,
     double* x,
@@ -796,11 +848,9 @@ bool tnls_cpp_subset(
     const double f0 = *f;
 
     auto compute_gradient = [&]() -> bool {
-        if (*gtype == 0) {
-            packmol_calcg_fortran_c(nind, ind, x, &n_val, x, &m_val, lambda, rho, g, inform);
-        } else if (*gtype == 1) {
-            packmol_calcgdiff_fortran_c(nind, ind, x, &n_val, x, &m_val, lambda, rho, g, sterel, steabs, inform);
-        }
+        calcg_cpp_reduced(
+            nind, ind, x, &n_val, x, &m_val, lambda, rho, gtype, g, sterel, steabs, inform
+        );
         *gcnt += 1;
         return *inform >= 0;
     };
@@ -920,11 +970,9 @@ bool tnls_cpp_subset(
 
     if (*amax > 1.0) {
         if (fplus <= *f + *gamma * alpha * gtd) {
-            if (*gtype == 0) {
-                packmol_calcg_fortran_c(nind, ind, xplus, &n_val, x, &m_val, lambda, rho, g, inform);
-            } else if (*gtype == 1) {
-                packmol_calcgdiff_fortran_c(nind, ind, xplus, &n_val, x, &m_val, lambda, rho, g, sterel, steabs, inform);
-            }
+            calcg_cpp_reduced(
+                nind, ind, xplus, &n_val, x, &m_val, lambda, rho, gtype, g, sterel, steabs, inform
+            );
             *gcnt += 1;
             if (*inform < 0) {
                 return true;

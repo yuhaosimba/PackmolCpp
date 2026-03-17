@@ -1059,3 +1059,13 @@ Reduced-wrapper migration increment (`calcf` in C++):
 - Scope:
   - removes one high-frequency Fortran reduced-wrapper dependency from the C++ TN line-search path.
   - no changes to Fortran mode behavior or public interfaces.
+
+Reduced-wrapper migration increment (`calcg/calcgdiff` in C++ for TNLS path):
+
+- Added C bindings for full-space gradient callbacks:
+  - `packmol_evalnal_fortran_c(...)`
+  - `packmol_evalnaldiff_fortran_c(...)`
+- Replaced `packmol_calcg_fortran_c/packmol_calcgdiff_fortran_c` calls inside `tnls_cpp_subset` with C++ reduced-space wrapper:
+  - `calcg_cpp_reduced(...)` now performs `complete -> expand -> evalnal|evalnaldiff -> shrink`.
+- Scope:
+  - further removes Fortran reduced-wrapper dependence from C++ TN line-search internals while keeping existing callback interfaces.
