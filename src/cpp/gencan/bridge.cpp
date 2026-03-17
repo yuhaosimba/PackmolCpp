@@ -734,6 +734,36 @@ void calchddiff_cpp_reduced(
     }
 }
 
+void calchd_cpp_reduced(
+    const int* nind,
+    const int* ind,
+    double* x,
+    double* d,
+    double* g,
+    const int* n,
+    const double* xc,
+    double* hd
+) {
+    const int nind_val = *nind;
+    const int n_val = *n;
+
+    for (int i = nind_val; i < n_val; ++i) {
+        d[i] = 0.0;
+        x[i] = xc[i];
+    }
+
+    expand_inplace(nind_val, ind, x);
+    expand_inplace(nind_val, ind, d);
+    expand_inplace(nind_val, ind, g);
+
+    // Keep legacy calchd semantics: this wrapper performs reduced/full-space
+    // packing and leaves hd values to external evalhd side effects.
+    shrink_inplace(nind_val, ind, x);
+    shrink_inplace(nind_val, ind, d);
+    shrink_inplace(nind_val, ind, g);
+    shrink_inplace(nind_val, ind, hd);
+}
+
 void spgls_cpp(
     const int* n,
     double* x,
@@ -1226,9 +1256,7 @@ void cg_cpp_full(
         }
 
         if (*htvtype == 0) {
-            packmol_calchd_fortran_c(
-                nind, ind, x, d, g, n, x, m, lambda, rho, w, y, sterel, steabs, inform
-            );
+            calchd_cpp_reduced(nind, ind, x, d, g, n, x, w);
         } else if (*htvtype == 1) {
             calchddiff_cpp_reduced(
                 nind, ind, n, x, d, g, m, lambda, rho, gtype, w, y, sterel, steabs, inform

@@ -1078,3 +1078,11 @@ Reduced-wrapper migration increment (`calchddiff` orchestration in C++ for CG pa
 - Scope:
   - removes one Fortran reduced-wrapper entry from CG core loop while preserving behavior.
   - `htvtype=0` (`calchd`) remains on existing Fortran path for now.
+
+Reduced-wrapper migration increment (`calchd` reduced-space plumbing in C++ for CG path):
+
+- Replaced `packmol_calchd_fortran_c` call in `cg_cpp_full` (`htvtype=0`) with C++ helper:
+  - `calchd_cpp_reduced(...)` mirrors current Fortran wrapper behavior (`complete -> expand -> shrink`) and intentionally preserves legacy `inform` behavior.
+  - keeps current repository semantics where `evalhd` path is effectively a no-op under default callbacks.
+- Scope:
+  - removes `calchd` Fortran reduced-wrapper entry from C++ CG core loop.
