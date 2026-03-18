@@ -1106,3 +1106,12 @@ Precision-check migration increment (bridge-side `packmolprecision` logic in C++
 - Scope:
   - removes direct dependence on `packmolprecision` bridge wrapper from C++ GENCAN path.
   - keeps runtime semantics aligned with legacy check ordering and callback behavior.
+
+EASYGENCAN dispatch migration increment:
+
+- Updated `easygencan_cpp(...)` to call `packmol_gencan_gencan_bridge(...)` instead of
+  `packmol_gencan_fortran_c(...)`.
+- Scope:
+  - in `PACKMOL_GENCAN_IMPL=cpp|ab` + `PACKMOL_GENCAN_EASY_CPP_DRAFT=1`, EASYGENCAN now
+    executes through the C++ GENCAN bridge pipeline.
+  - Fortran mode and explicit EASY Fortran fallback behavior remain unchanged.
