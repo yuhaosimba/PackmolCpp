@@ -365,10 +365,10 @@ extern "C" void packmol_evalnaldiff_fortran_c(
     int* flag
 );
 
-extern "C" void packmol_packmolprecision_fortran_c(
-    const int* n,
-    const double* x,
-    bool* ok
+extern "C" void packmol_precision_state_fortran_c(
+    double* precision_value,
+    double* fdist_value,
+    double* frest_value
 );
 
 namespace {
@@ -633,6 +633,26 @@ void eval_gradient_full_cpp(
     } else {
         packmol_evalnaldiff_fortran_c(n, x, m, lambda, rho, g, sterel, steabs, inform);
     }
+}
+
+bool packmolprecision_cpp(
+    const int* n,
+    double* x,
+    const int* m,
+    const double* lambda,
+    const double* rho
+) {
+    int eval_flag = 0;
+    double f_unused = 0.0;
+    packmol_evalal_fortran_c(n, x, m, lambda, rho, &f_unused, &eval_flag);
+    if (eval_flag < 0) {
+        return false;
+    }
+    double precision_value = 0.0;
+    double fdist_value = 0.0;
+    double frest_value = 0.0;
+    packmol_precision_state_fortran_c(&precision_value, &fdist_value, &frest_value);
+    return fdist_value < precision_value && frest_value < precision_value;
 }
 
 void calchddiff_cpp_reduced(
@@ -2240,8 +2260,7 @@ extern "C" void packmol_gencan_gencan_bridge(
             double f_try = 0.0;
             packmol_evalal_fortran_c(n, x_try.data(), m, lambda, rho, &f_try, &eval_flag);
 
-            bool precision_solution = false;
-            packmol_packmolprecision_fortran_c(n, x_try.data(), &precision_solution);
+            const bool precision_solution = packmolprecision_cpp(n, x_try.data(), m, lambda, rho);
             if (precision_solution) {
                 *f = f_try;
                 for (int i = 0; i < n_val; ++i) {
@@ -2564,8 +2583,7 @@ extern "C" void packmol_gencan_gencan_bridge(
                         return;
                     }
 
-                    bool precision_after_spg = false;
-                    packmol_packmolprecision_fortran_c(n, x_work.data(), &precision_after_spg);
+                    const bool precision_after_spg = packmolprecision_cpp(n, x_work.data(), m, lambda, rho);
                     int post_inform = evaluate_post_step_inform_cpp(
                         precision_after_spg,
                         ls_inform,
@@ -2682,8 +2700,7 @@ extern "C" void packmol_gencan_gencan_bridge(
                             }
                         }
 
-                        bool precision_after_retry = false;
-                        packmol_packmolprecision_fortran_c(n, x_work.data(), &precision_after_retry);
+                        const bool precision_after_retry = packmolprecision_cpp(n, x_work.data(), m, lambda, rho);
                         ls_inform = spg_line_inform;
                         post_inform = evaluate_post_step_inform_cpp(
                             precision_after_retry,
@@ -3046,8 +3063,7 @@ extern "C" void packmol_gencan_gencan_bridge(
                                     gpeucn2_after += gpi * gpi;
                                 }
 
-                                bool precision_after = false;
-                                packmol_packmolprecision_fortran_c(n, x_work.data(), &precision_after);
+                                const bool precision_after = packmolprecision_cpp(n, x_work.data(), m, lambda, rho);
                                 int post_inform = evaluate_post_step_inform_cpp(
                                     precision_after,
                                     line_inform,
@@ -3158,8 +3174,7 @@ extern "C" void packmol_gencan_gencan_bridge(
                                         gpeucn2_after += gpi * gpi;
                                     }
 
-                                    bool precision_after_retry = false;
-                                    packmol_packmolprecision_fortran_c(n, x_work.data(), &precision_after_retry);
+                                    const bool precision_after_retry = packmolprecision_cpp(n, x_work.data(), m, lambda, rho);
                                     post_inform = evaluate_post_step_inform_cpp(
                                         precision_after_retry,
                                         spg_line_inform,

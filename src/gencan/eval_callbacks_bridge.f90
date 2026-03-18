@@ -42,3 +42,16 @@ subroutine packmol_evalnaldiff_fortran_c(n, x, m, lambda, rho, g, sterel, steabs
 
    call evalnaldiff(n, x, m, lambda, rho, g, sterel, steabs, flag)
 end subroutine packmol_evalnaldiff_fortran_c
+
+subroutine packmol_precision_state_fortran_c(precision_value, fdist_value, frest_value) bind(C, name="packmol_precision_state_fortran_c")
+   use iso_c_binding, only : c_double
+   use input, only : precision
+   use compute_data, only : fdist, frest
+   implicit none
+
+   real(c_double), intent(out) :: precision_value, fdist_value, frest_value
+
+   precision_value = precision
+   fdist_value = fdist
+   frest_value = frest
+end subroutine packmol_precision_state_fortran_c

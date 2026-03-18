@@ -1095,3 +1095,14 @@ Gradient-wrapper migration increment (bridge-side full/reduced eval dispatch in 
   - GENCAN main C++ path post-step gradient refresh sites now call `eval_gradient_full_cpp(...)`.
 - Scope:
   - further narrows Fortran dependency surface to callback-level APIs and non-migrated fallback paths.
+
+Precision-check migration increment (bridge-side `packmolprecision` logic in C++):
+
+- Replaced bridge-side calls to `packmol_packmolprecision_fortran_c` with C++ helper:
+  - new `packmolprecision_cpp(...)` triggers an objective callback (`evalal`) and evaluates
+    `fdist/frest < precision` using exported module state.
+  - added C binding `packmol_precision_state_fortran_c(...)` in `eval_callbacks_bridge.f90`
+    to read `precision`, `fdist`, and `frest`.
+- Scope:
+  - removes direct dependence on `packmolprecision` bridge wrapper from C++ GENCAN path.
+  - keeps runtime semantics aligned with legacy check ordering and callback behavior.
