@@ -371,43 +371,6 @@ extern "C" void packmol_packmolprecision_fortran_c(
     bool* ok
 );
 
-extern "C" void packmol_calchd_fortran_c(
-    const int* nind,
-    const int* ind,
-    double* x,
-    double* d,
-    double* g,
-    const int* n,
-    const double* xc,
-    const int* m,
-    const double* lambda,
-    const double* rho,
-    double* hd,
-    double* xtmp,
-    const double* sterel,
-    const double* steabs,
-    int* inform
-);
-
-extern "C" void packmol_calchddiff_fortran_c(
-    const int* nind,
-    const int* ind,
-    double* x,
-    double* d,
-    double* g,
-    const int* n,
-    const double* xc,
-    const int* m,
-    const double* lambda,
-    const double* rho,
-    const int* gtype,
-    double* hd,
-    double* xtmp,
-    const double* sterel,
-    const double* steabs,
-    int* inform
-);
-
 namespace {
 
 double dot_cpp_stable(const int n, const double* a, const double* b) {
