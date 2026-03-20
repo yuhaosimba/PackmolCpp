@@ -243,3 +243,13 @@ subroutine computeg(n,x,g)
    return
 end subroutine computeg
 
+subroutine packmol_computeg_fortran_c(n, x, g) bind(C, name="packmol_computeg_fortran_c")
+   use iso_c_binding, only : c_int, c_double
+   implicit none
+
+   integer(c_int), intent(in) :: n
+   real(c_double), intent(in) :: x(*)
+   real(c_double), intent(out) :: g(*)
+
+   call computeg(n, x, g)
+end subroutine packmol_computeg_fortran_c

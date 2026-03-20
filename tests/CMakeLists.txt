@@ -365,6 +365,8 @@ set_tests_properties(test_gencan_runtime_driver_probe PROPERTIES LABELS "gencan"
 set_tests_properties(test_gencan_runtime_driver_probe PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/fixtures")
 add_executable(test_gencan_ab_probe gencan/test_gencan_ab_probe.f90)
 target_link_libraries(test_gencan_ab_probe PRIVATE packmol_test_support packmol_core)
+add_executable(test_gencan_spg_post_ab_probe gencan/test_gencan_spg_post_ab_probe.f90)
+target_link_libraries(test_gencan_spg_post_ab_probe PRIVATE packmol_test_support packmol_core)
 add_test(
     NAME test_gencan_ab
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_gencan_ab.py
@@ -435,6 +437,174 @@ set_tests_properties(
         ENVIRONMENT "PACKMOL_GENCAN_IMPL=cpp"
 )
 add_test(
+    NAME test_gencan_tn_cpp_handoff_draft_smoke
+    COMMAND $<TARGET_FILE:test_gencan_runtime_driver_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(
+    test_gencan_tn_cpp_handoff_draft_smoke
+    PROPERTIES
+        LABELS "gencan;gencan_draft"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/fixtures"
+        ENVIRONMENT "PACKMOL_GENCAN_IMPL=cpp;PACKMOL_GENCAN_TN_POST_CPP_HANDOFF=1;PACKMOL_GENCAN_TN_POST_CPP_HANDOFF_UNSAFE=1;PACKMOL_GENCAN_TN_POST_CPP_HANDOFF_MAX_DEPTH=1"
+)
+add_test(
+    NAME test_gencan_tn_cpp_handoff_nocanon_draft_smoke
+    COMMAND $<TARGET_FILE:test_gencan_runtime_driver_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(
+    test_gencan_tn_cpp_handoff_nocanon_draft_smoke
+    PROPERTIES
+        LABELS "gencan;gencan_draft"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/fixtures"
+        ENVIRONMENT "PACKMOL_GENCAN_IMPL=cpp;PACKMOL_GENCAN_TN_POST_CPP_HANDOFF=1;PACKMOL_GENCAN_TN_POST_CPP_HANDOFF_UNSAFE=1;PACKMOL_GENCAN_TN_POST_CPP_HANDOFF_CANONICALIZE=0;PACKMOL_GENCAN_TN_POST_CPP_HANDOFF_MAX_DEPTH=1"
+)
+add_test(
+    NAME test_gencan_tn_cpp_handoff_cpp_replay_draft_smoke
+    COMMAND $<TARGET_FILE:test_gencan_runtime_driver_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(
+    test_gencan_tn_cpp_handoff_cpp_replay_draft_smoke
+    PROPERTIES
+        LABELS "gencan;gencan_draft"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/fixtures"
+        ENVIRONMENT "PACKMOL_GENCAN_IMPL=cpp;PACKMOL_GENCAN_TN_POST_CPP_HANDOFF=1;PACKMOL_GENCAN_TN_POST_CPP_HANDOFF_UNSAFE=1;PACKMOL_GENCAN_TN_POST_CPP_HANDOFF_CPP_REPLAY=1;PACKMOL_GENCAN_TN_POST_CPP_HANDOFF_MAX_DEPTH=1"
+)
+add_test(
+    NAME test_gencan_tn_cpp_replay_no_fortran_closure
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tn_cpp_replay_no_fortran.py
+)
+set_tests_properties(
+    test_gencan_tn_cpp_replay_no_fortran_closure
+    PROPERTIES
+        LABELS "gencan;gencan_draft;gencan_closure"
+)
+add_test(
+    NAME test_gencan_tn_cpp_replay_forced_no_fortran_closure
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tn_cpp_replay_forced_no_fortran.py
+)
+set_tests_properties(
+    test_gencan_tn_cpp_replay_forced_no_fortran_closure
+    PROPERTIES
+        LABELS "gencan;gencan_draft;gencan_closure"
+)
+add_test(
+    NAME test_gencan_spg_post_cpp_handoff_draft_smoke
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_spg_post_handoff.py
+        $<TARGET_FILE:test_gencan_spg_post_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
+)
+set_tests_properties(
+    test_gencan_spg_post_cpp_handoff_draft_smoke
+    PROPERTIES
+        LABELS "gencan;gencan_draft"
+)
+add_test(
+    NAME test_gencan_spg_post_cpp_handoff_drift_strict
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_spg_post_handoff_drift.py
+)
+set_tests_properties(
+    test_gencan_spg_post_cpp_handoff_drift_strict
+    PROPERTIES
+        LABELS "gencan;gencan_draft;gencan_closure"
+)
+add_test(
+    NAME test_gencan_tn_cpp_handoff_matrix_report
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tn_handoff_matrix.py
+)
+set_tests_properties(
+    test_gencan_tn_cpp_handoff_matrix_report
+    PROPERTIES
+        LABELS "gencan;gencan_draft"
+)
+add_test(
+    NAME test_gencan_tn_cpp_handoff_drift_strict
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tn_handoff_drift.py
+        $<TARGET_FILE:test_gencan_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp --max-depth 1 --strict
+)
+set_tests_properties(
+    test_gencan_tn_cpp_handoff_drift_strict
+    PROPERTIES
+        LABELS "gencan;gencan_draft;gencan_closure"
+)
+add_test(
+    NAME test_gencan_tn_cpp_handoff_entry_stop_drift_strict
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tn_handoff_drift.py
+        $<TARGET_FILE:test_gencan_entry_stop_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp --max-depth 1 --strict
+)
+set_tests_properties(
+    test_gencan_tn_cpp_handoff_entry_stop_drift_strict
+    PROPERTIES
+        LABELS "gencan;gencan_draft;gencan_closure"
+)
+add_test(
+    NAME test_gencan_tn_cpp_handoff_inform2_drift_strict
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tn_handoff_drift.py
+        $<TARGET_FILE:test_gencan_entry_stop_inform2_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp --max-depth 1 --strict
+)
+set_tests_properties(
+    test_gencan_tn_cpp_handoff_inform2_drift_strict
+    PROPERTIES
+        LABELS "gencan;gencan_draft;gencan_closure"
+)
+add_test(
+    NAME test_gencan_tn_cpp_handoff_inform3_drift_strict
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tn_handoff_drift.py
+        $<TARGET_FILE:test_gencan_entry_stop_inform3_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp --max-depth 1 --strict
+)
+set_tests_properties(
+    test_gencan_tn_cpp_handoff_inform3_drift_strict
+    PROPERTIES
+        LABELS "gencan;gencan_draft;gencan_closure"
+)
+add_test(
+    NAME test_gencan_tn_cpp_handoff_cpp_replay_drift_strict
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tn_handoff_drift.py
+        $<TARGET_FILE:test_gencan_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp --max-depth 1 --strict --cpp-replay
+)
+set_tests_properties(
+    test_gencan_tn_cpp_handoff_cpp_replay_drift_strict
+    PROPERTIES
+        LABELS "gencan;gencan_draft;gencan_closure"
+)
+add_test(
+    NAME test_gencan_tn_cpp_handoff_cpp_replay_entry_stop_drift_strict
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tn_handoff_drift.py
+        $<TARGET_FILE:test_gencan_entry_stop_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp --max-depth 1 --strict --cpp-replay
+)
+set_tests_properties(
+    test_gencan_tn_cpp_handoff_cpp_replay_entry_stop_drift_strict
+    PROPERTIES
+        LABELS "gencan;gencan_draft;gencan_closure"
+)
+add_test(
+    NAME test_gencan_tn_cpp_handoff_cpp_replay_inform2_drift_strict
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tn_handoff_drift.py
+        $<TARGET_FILE:test_gencan_entry_stop_inform2_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp --max-depth 1 --strict --cpp-replay
+)
+set_tests_properties(
+    test_gencan_tn_cpp_handoff_cpp_replay_inform2_drift_strict
+    PROPERTIES
+        LABELS "gencan;gencan_draft;gencan_closure"
+)
+add_test(
+    NAME test_gencan_tn_cpp_handoff_cpp_replay_inform3_drift_strict
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tn_handoff_drift.py
+        $<TARGET_FILE:test_gencan_entry_stop_inform3_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp --max-depth 1 --strict --cpp-replay
+)
+set_tests_properties(
+    test_gencan_tn_cpp_handoff_cpp_replay_inform3_drift_strict
+    PROPERTIES
+        LABELS "gencan;gencan_draft;gencan_closure"
+)
+add_test(
+    NAME test_gencan_tn_handoff_unsafe_legacy_off_closure
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_tn_handoff_unsafe_legacy_off.py
+)
+set_tests_properties(
+    test_gencan_tn_handoff_unsafe_legacy_off_closure
+    PROPERTIES
+        LABELS "gencan;gencan_draft;gencan_closure"
+)
+add_test(
     NAME test_gencan_ab_tn_draft
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_gencan_ab.py
         $<TARGET_FILE:test_gencan_ab_probe> ${CMAKE_SOURCE_DIR}/tests/fixtures/tiny_packing.inp
@@ -487,6 +657,46 @@ set_tests_properties(
     PROPERTIES
         LABELS "gencan;gencan_ab;gencan_draft;gencan_closure"
         ENVIRONMENT "PACKMOL_GENCAN_SPG_POST_RETRY=1"
+)
+add_test(
+    NAME test_gencan_no_fallback_matrix_closure
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_gencan_no_fallback_matrix.py
+)
+set_tests_properties(
+    test_gencan_no_fallback_matrix_closure
+    PROPERTIES
+        LABELS "gencan;gencan_draft;gencan_closure"
+)
+add_test(
+    NAME test_gencan_no_fallback_matrix_legacy_tail_off_closure
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_gencan_no_fallback_matrix.py
+)
+set_tests_properties(
+    test_gencan_no_fallback_matrix_legacy_tail_off_closure
+    PROPERTIES
+        LABELS "migration_probe"
+        ENVIRONMENT "PACKMOL_GENCAN_DISABLE_LEGACY_FORTRAN_FALLBACK=1"
+)
+add_test(
+    NAME test_gencan_no_fallback_matrix_ab_drift
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_gencan_no_fallback_matrix.py
+)
+set_tests_properties(
+    test_gencan_no_fallback_matrix_ab_drift
+    PROPERTIES
+        LABELS "migration_probe"
+        ENVIRONMENT "PACKMOL_GENCAN_DISABLE_LEGACY_FORTRAN_FALLBACK=1;PACKMOL_GENCAN_AB_COMPARE=1"
+)
+add_test(
+    NAME test_gencan_no_fallback_matrix_ab_drift_report
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/gencan/check_gencan_no_fallback_matrix.py
+        --report-out ${CMAKE_BINARY_DIR}/tests/gencan_ab_drift_report.json
+)
+set_tests_properties(
+    test_gencan_no_fallback_matrix_ab_drift_report
+    PROPERTIES
+        LABELS "migration_probe"
+        ENVIRONMENT "PACKMOL_GENCAN_DISABLE_LEGACY_FORTRAN_FALLBACK=1;PACKMOL_GENCAN_AB_COMPARE=1;PACKMOL_GENCAN_AB_COMPARE_REPORT=1"
 )
 packmol_add_test(test_easygencan gencan/test_easygencan.f90 gencan)
 packmol_add_test(test_gencan_driver gencan/test_gencan_driver.f90 gencan)

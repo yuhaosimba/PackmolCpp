@@ -152,3 +152,14 @@ subroutine computef(n,x,f)
 
    return
 end subroutine computef
+
+subroutine packmol_computef_fortran_c(n, x, f) bind(C, name="packmol_computef_fortran_c")
+   use iso_c_binding, only : c_int, c_double
+   implicit none
+
+   integer(c_int), intent(in) :: n
+   real(c_double), intent(in) :: x(*)
+   real(c_double), intent(out) :: f
+
+   call computef(n, x, f)
+end subroutine packmol_computef_fortran_c

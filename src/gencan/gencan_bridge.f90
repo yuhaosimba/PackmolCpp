@@ -138,17 +138,3 @@ subroutine packmol_gencan_fortran_c(n, x, l, u, m, lambda, rho, epsgpen, epsgpsn
       d, ind, lastgpns, w, eta, delmin, lspgma, lspgmi, theta, gamma, beta, sigma1, sigma2, sterel, steabs, &
       epsrel, epsabs, infrel, infabs)
 end subroutine packmol_gencan_fortran_c
-
-subroutine packmol_packmolprecision_fortran_c(n, x, ok) bind(C, name="packmol_packmolprecision_fortran_c")
-   use iso_c_binding, only : c_int, c_double, c_bool
-   implicit none
-
-   integer(c_int), intent(in) :: n
-   real(c_double), intent(in) :: x(*)
-   logical(c_bool), intent(out) :: ok
-   logical :: ok_f
-   logical, external :: packmolprecision
-
-   ok_f = packmolprecision(n, x)
-   ok = ok_f
-end subroutine packmol_packmolprecision_fortran_c

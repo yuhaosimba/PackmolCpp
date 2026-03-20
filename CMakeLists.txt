@@ -17,7 +17,6 @@ set(PACKMOL_CORE_SOURCES
        src/exit_codes.f90
        src/cenmass.f90
        src/gencan/eval_callbacks.f
-       src/gencan/eval_callbacks_bridge.f90
        src/gencan/easygencan.f
        src/gencan/gencan_driver.f
        src/gencan/gencan_bridge.f90
@@ -28,10 +27,8 @@ set(PACKMOL_CORE_SOURCES
        src/gencan/tnls.f
        src/gencan/tnls_bridge.f90
        src/gencan/reduced_wrappers.f
-       src/gencan/reduced_wrappers_bridge.f90
        src/gencan/vector_ops.f
        src/gencan/numeric_utils.f
-       src/gencan/numeric_utils_bridge.f90
        src/gencan_ieee_signal_routines.f90
        src/pgencan.f90
        src/initial.f90

@@ -6,6 +6,7 @@
 module compute_data
 
    use sizes
+   use iso_c_binding, only : c_double
 
    integer :: ntotmol, ntype, nfixedat, ntotat
    integer :: ncells(3)
@@ -20,7 +21,8 @@ module compute_data
    integer, allocatable :: ibtype(:) ! (ntotat)
 
    double precision :: scale, scale2
-   double precision :: fdist, frest
+   real(c_double), bind(C, name="packmol_fdist") :: fdist
+   real(c_double), bind(C, name="packmol_frest") :: frest
    double precision :: sizemin(3), sizemax(3)
    double precision :: cell_length(3), system_length(3)
    double precision :: radmax
