@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(packmol Fortran)
+project(packmol LANGUAGES Fortran CXX)
 
 include(CTest)
 
@@ -16,7 +16,19 @@ endif()
 set(PACKMOL_CORE_SOURCES
        src/exit_codes.f90
        src/cenmass.f90
-       src/gencan.f
+       src/gencan/eval_callbacks.f
+       src/gencan/easygencan.f
+       src/gencan/gencan_driver.f
+       src/gencan/gencan_bridge.f90
+       src/gencan/spgls.f
+       src/gencan/spgls_bridge.f90
+       src/gencan/cg.f
+       src/gencan/cg_bridge.f90
+       src/gencan/tnls.f
+       src/gencan/tnls_bridge.f90
+       src/gencan/reduced_wrappers.f
+       src/gencan/vector_ops.f
+       src/gencan/numeric_utils.f
        src/gencan_ieee_signal_routines.f90
        src/pgencan.f90
        src/initial.f90
@@ -48,6 +60,7 @@ set(PACKMOL_CORE_SOURCES
        src/sizes.f90
        src/pbc.f90
        src/usegencan.f90
+       src/gencan_cpp_bridge.f90
        src/compute_data.f90
        src/flashmod.f90
        src/computef.f90
@@ -55,8 +68,17 @@ set(PACKMOL_CORE_SOURCES
        src/input.f90
 )
 
+add_library(packmol_gencan_cpp_obj OBJECT
+    src/cpp/gencan/bridge.cpp
+)
+target_compile_features(packmol_gencan_cpp_obj PUBLIC cxx_std_17)
+target_include_directories(packmol_gencan_cpp_obj PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp
+)
+
 add_library(packmol_core STATIC
     ${PACKMOL_CORE_SOURCES}
+    $<TARGET_OBJECTS:packmol_gencan_cpp_obj>
 )
 
 target_include_directories(packmol_core PUBLIC

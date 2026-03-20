@@ -1,0 +1,12 @@
+Key commands for PackmolCpp development on Linux:
+- `env PIXI_HOME=$PWD/.pixi-home RATTLER_CACHE_DIR=/tmp/packmol-rattler-cache pixi run inventory`
+- `env PIXI_HOME=$PWD/.pixi-home RATTLER_CACHE_DIR=/tmp/packmol-rattler-cache pixi run build`
+- `env PIXI_HOME=$PWD/.pixi-home RATTLER_CACHE_DIR=/tmp/packmol-rattler-cache pixi run test-unit`
+- `env PIXI_HOME=$PWD/.pixi-home RATTLER_CACHE_DIR=/tmp/packmol-rattler-cache pixi run test-component`
+- `env PIXI_HOME=$PWD/.pixi-home RATTLER_CACHE_DIR=/tmp/packmol-rattler-cache pixi run test-gencan`
+- `env PIXI_HOME=$PWD/.pixi-home RATTLER_CACHE_DIR=/tmp/packmol-rattler-cache pixi run test-regression`
+- `env PIXI_HOME=$PWD/.pixi-home RATTLER_CACHE_DIR=/tmp/packmol-rattler-cache pixi run test-all`
+- Manual configure: `cmake -S . -B build -G Ninja -DBUILD_TESTING=ON`
+- Manual build: `cmake --build build`
+- Manual tests: `ctest --test-dir build --output-on-failure`, or narrow by label with `-L unit|component|gencan|regression`.
+- Legacy make build is available with `make` but repository docs recommend pixi/CMake for development.

@@ -5,6 +5,7 @@ import pathlib
 import subprocess
 import sys
 import tempfile
+import shutil
 
 
 def assert_pdb_basics(path: pathlib.Path) -> None:
@@ -22,11 +23,18 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory() as tmpdir_name:
         tmpdir = pathlib.Path(tmpdir_name)
+        staged_input = tmpdir / input_path.name
+        shutil.copy2(input_path, staged_input)
+
+        structure_name = "minimal_structure.pdb"
+        structure_src = input_path.parent / structure_name
+        if structure_src.exists():
+            shutil.copy2(structure_src, tmpdir / structure_name)
 
         if mode == "output":
             output_path = tmpdir / "generated.pdb"
             completed = subprocess.run(
-                [str(probe), str(input_path), str(output_path)],
+                [str(probe), str(staged_input), str(output_path)],
                 capture_output=True,
                 cwd=tmpdir,
             )
@@ -49,7 +57,7 @@ def main() -> int:
 
         if mode == "checkpoint":
             completed = subprocess.run(
-                [str(probe), str(input_path)],
+                [str(probe), str(staged_input)],
                 capture_output=True,
                 cwd=tmpdir,
             )

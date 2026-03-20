@@ -287,6 +287,17 @@
     "shim_required": true
   },
   {
+    "procedure": "gencan_cpp_probe",
+    "source_file": "src/gencan_cpp_bridge.f90",
+    "kind": "subroutine",
+    "category": "component",
+    "dependencies": [
+      "iso_c_binding"
+    ],
+    "test_type": "component",
+    "shim_required": true
+  },
+  {
     "procedure": "gp_ieee_signal1",
     "source_file": "src/gencan_ieee_signal_routines.f90",
     "kind": "subroutine",

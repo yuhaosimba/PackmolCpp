@@ -9,6 +9,7 @@
 module input
 
    use sizes
+   use iso_c_binding, only : c_double
    implicit none
 
    integer :: nlines
@@ -35,7 +36,7 @@ module input
    double precision :: discale
    double precision :: movefrac
    double precision :: add_sides_fix
-   double precision :: precision
+   real(c_double), bind(C, name="packmol_input_precision") :: precision
    double precision :: fbins
    double precision :: short_tol_dist
    double precision :: short_tol_scale
