@@ -29,6 +29,10 @@ subroutine computef(n,x,f)
    f = 0.d0
    frest = 0.d0
    fdist = 0.d0
+   pair_penalty_sum = 0.d0
+   constraint_penalty_sum = 0.d0
+   pair_penalty_count = 0
+   constraint_penalty_count = 0
 
    ! Reset cells
 
@@ -76,6 +80,8 @@ subroutine computef(n,x,f)
             call comprest(icart,fplus)
             f = f + fplus
             frest = dmax1(frest,fplus)
+            constraint_penalty_sum = constraint_penalty_sum + fplus
+            if ( fplus .gt. 0.d0 ) constraint_penalty_count = constraint_penalty_count + 1
             if(move) frest_atom(icart) = frest_atom(icart) + fplus
 
             ! Putting atoms in their cells
@@ -163,3 +169,17 @@ subroutine packmol_computef_fortran_c(n, x, f) bind(C, name="packmol_computef_fo
 
    call computef(n, x, f)
 end subroutine packmol_computef_fortran_c
+
+subroutine packmol_init1_state_fortran_c(flag) bind(C, name="packmol_init1_state_fortran_c")
+   use iso_c_binding, only : c_int
+   use compute_data, only : init1
+   implicit none
+
+   integer(c_int), intent(out) :: flag
+
+   if (init1) then
+      flag = 1_c_int
+   else
+      flag = 0_c_int
+   end if
+end subroutine packmol_init1_state_fortran_c

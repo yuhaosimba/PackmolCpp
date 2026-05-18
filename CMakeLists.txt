@@ -30,6 +30,7 @@ set(PACKMOL_CORE_SOURCES
        src/gencan/vector_ops.f
        src/gencan/numeric_utils.f
        src/gencan_ieee_signal_routines.f90
+       src/gencan_debug_trace.f90
        src/pgencan.f90
        src/initial.f90
        src/title.f90
@@ -65,11 +66,26 @@ set(PACKMOL_CORE_SOURCES
        src/flashmod.f90
        src/computef.f90
        src/computeg.f90
+       src/eval_state_bridge.f90
        src/input.f90
+       src/gencan/reduced_wrapper_bridge.f90
 )
 
 add_library(packmol_gencan_cpp_obj OBJECT
-    src/cpp/gencan/bridge.cpp
+    src/cpp/gencan/gencan_interface.cpp
+    src/cpp/gencan/gencan_runtime.cpp
+    src/cpp/gencan/gencan_eval_interface.cpp
+    src/cpp/gencan/gencan_post.cpp
+    src/cpp/gencan/gencan_eval.cpp
+    src/cpp/gencan/gencan_eval_state.cpp
+    src/cpp/gencan/gencan_eval_objective.cpp
+    src/cpp/gencan/gencan_spgls.cpp
+    src/cpp/gencan/gencan_tnls.cpp
+    src/cpp/gencan/gencan_cg.cpp
+    src/cpp/gencan/gencan_numeric.cpp
+    src/cpp/gencan/gencan_probe.cpp
+    src/cpp/gencan/gencan_easy.cpp
+    src/cpp/gencan/gencan_solver.cpp
 )
 target_compile_features(packmol_gencan_cpp_obj PUBLIC cxx_std_17)
 target_include_directories(packmol_gencan_cpp_obj PUBLIC

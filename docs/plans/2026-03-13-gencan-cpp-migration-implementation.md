@@ -174,6 +174,7 @@ Policy:
 - `fortran`: legacy reference path.
 - `cpp`: replacement path.
 - `ab`: run A/B checks in tests using same fixtures and compare status, objective, key vectors/counters within tolerances.
+- Tail continuation is now C++ by default in both `cpp` and `ab` modes. The old `PACKMOL_GENCAN_AB_FORCE_CPP_TAIL` draft flag has been removed.
 
 ## Definition of Done
 
@@ -536,8 +537,8 @@ Easygencan migration increment:
   - Reuses existing working-space layout (`wd` slices for `s/y/d/w`, `wi` as `ind`).
   - Dispatches into existing Fortran `gencan` kernel ABI to preserve core behavior while moving setup logic.
 - Added runtime gate for controlled rollout:
-  - `PACKMOL_GENCAN_EASY_CPP_DRAFT=1` enables C++ easygencan path in `cpp|ab`.
-  - Default remains Fortran easygencan path to keep runtime parity stable.
+  - (historical) easygencan path was initially env-gated during landing.
+  - Current status: `cpp|ab` dispatch is C++ by default; only explicit `fortran` mode uses Fortran easygencan.
 - Added dedicated AB test:
   - `test_easygencan_ab` with probe/checker pair validates `fortran|cpp|ab` parity on stable fields (`inform`, `iter`, `fcnt`, `gcnt`, `f`, `gpsupn`, `xsum`, `gnorm2`).
 
@@ -798,8 +799,7 @@ Stabilization update (front-door rollout status):
 - Re-validated `cg_cpp_full` on runtime fixture with shadow comparison and A/B gates, then promoted CG path again:
   - `packmol_gencan_cg_bridge` now default-on in `cpp|ab`.
   - `test_gencan_ab_cg_draft` validates default path directly (no env override).
-- `easygencan` remains env-gated for parity-first stability:
-  - `PACKMOL_GENCAN_EASY_CPP_DRAFT=1` controls C++ easygencan path.
+- `easygencan` was subsequently promoted to default-on C++ in `cpp|ab` as well.
 
 Verification snapshot (current status):
 
@@ -816,7 +816,7 @@ Easygencan parity fix and promotion:
   - aligned C++ path to Fortran semantics by using local `delmin_local = 1.0e-2` in `easygencan_cpp` and writing it back to output `delmin`.
 - Rollout policy update:
   - `packmol_gencan_easy_bridge` is now default-on C++ in `cpp|ab`.
-  - `PACKMOL_GENCAN_EASY_CPP_DRAFT` remains as an emergency rollback switch (`0/false/no` => Fortran, unset/others => C++).
+  - `ab` path is aligned with `cpp` for easygencan dispatch.
 - Process note:
   - build/test must be run serially when validating rollout changes; parallel build+ctest can produce stale-binary false positives.
 
@@ -830,10 +830,9 @@ Fallback gate hardening (easygencan):
 
 - Added explicit rollback-gate test:
   - `test_easygencan_ab_fallback`
-  - env: `PACKMOL_GENCAN_EASY_CPP_DRAFT=0`
-  - labels: `gencan;gencan_ab;gencan_fallback`
+  - labels: `gencan;gencan_ab;gencan_closure`
 - Purpose:
-  - keep emergency Fortran fallback path continuously validated while `easygencan` stays default-on C++ in `cpp|ab`.
+  - keep easygencan parity continuously validated while `easygencan` stays default-on C++ in `cpp|ab`.
 
 Verification snapshot (fallback gate):
 
@@ -1112,6 +1111,135 @@ EASYGENCAN dispatch migration increment:
 - Updated `easygencan_cpp(...)` to call `packmol_gencan_gencan_bridge(...)` instead of
   `packmol_gencan_fortran_c(...)`.
 - Scope:
-  - in `PACKMOL_GENCAN_IMPL=cpp|ab` + `PACKMOL_GENCAN_EASY_CPP_DRAFT=1`, EASYGENCAN now
-    executes through the C++ GENCAN bridge pipeline.
+  - in `PACKMOL_GENCAN_IMPL=cpp|ab`, EASYGENCAN executes through the C++ GENCAN bridge pipeline.
   - Fortran mode and explicit EASY Fortran fallback behavior remain unchanged.
+
+Tail migration workplan snapshot (2026-04-02):
+
+- Closure target for the remaining `gencan` tail:
+  - eliminate default-runtime legacy tail fallback for:
+    - `spg_post_nonterminal`
+    - `tn_post_nonterminal`
+    - `tn_no_free_variables`
+    - generic `cpp_nonterminal_continue`
+  - keep `cpp` mode semantically aligned with current Fortran baseline on:
+    - `inform`
+    - `f/x/g`
+    - key counters (`iter/fcnt/gcnt/cgcnt/...`)
+- Execution order fixed for current closure wave:
+  - 1. close `spg_post_nonterminal` in C++ first.
+  - 2. then close `tn_post_nonterminal`.
+  - 3. then replace `tn_no_free_variables` with explicit in-bridge semantics.
+  - 4. finally remove generic `cpp_nonterminal_continue` and downgrade tail fallback to debug-only escape hatch.
+- Rationale:
+  - `spg_post_nonterminal` is the smallest continuation surface and is suitable for building the reusable C++ tail-closure pattern before touching the more coupled TN continuation.
+
+SPG post-tail continuation increment (default C++ path):
+
+- Updated `packmol_gencan_gencan_bridge(...)` so default `cpp` handling of
+  `spg_post_nonterminal` no longer waits for the end-of-function fallback dispatch to
+  decide continuation.
+- New behavior:
+  - when SPG post-step remains nonterminal, the bridge seeds current
+    `x/f/counters/s/y` state and continues through the in-bridge C++ continuation path.
+  - later cleanup removed the old SPG-specific handoff/debug branch; only the AB replay
+    compatibility path remains, and it is wired directly instead of through a dedicated
+    SPG tail helper.
+- Intent:
+  - make the default `cpp` path continue from the in-bridge post-step state instead of
+    depending on the legacy end-of-function tail handoff shape.
+
+SPG replay nested-TN guard increment:
+
+- Isolated drift source during the earlier SPG handoff probe wave:
+  - the remaining mismatch was not only bookkeeping; nested `tn_post_nonterminal`
+    continuation reached from SPG replay also drifted in final state (`f/x/g`) and counters.
+- Added an explicit nested-TN handoff gate:
+  - when `spg_post` replay is active (`g_spg_post_cpp_replay_depth > 0`), nested
+    `tn_post_nonterminal` C++ tail continuation is now treated as experimental and is only
+    allowed when `PACKMOL_GENCAN_HANDOFF_CPP_TAIL_ALLOW_TN_POST=1` is explicitly set.
+  - otherwise the nested TN leg stays on the already-validated C++ blocked-tail path.
+- Scope:
+  - this change stabilizes the default SPG replay closure path without removing the
+    explicit migration probe for nested TN C++ tail work.
+
+Current progress snapshot:
+
+- Completed in code:
+  - default `spg_post_nonterminal` path now seeds and re-enters C++ continuation directly.
+  - nested TN tail inside SPG replay is now opt-in instead of silently active by default.
+- Added explicit measurement for the remaining nested-TN gap during the migration-probe phase.
+- Remaining open work:
+  - make explicit nested `tn_post_nonterminal` C++ tail continuation drift-free so the
+    opt-in guard can be removed.
+  - close `tn_no_free_variables` with explicit C++ semantics.
+  - remove generic `cpp_nonterminal_continue` as a real runtime path.
+
+Verification snapshot (2026-04-02):
+
+- `cmake --build build --target test_gencan_spg_post_ab_probe test_gencan_ab_probe test_gencan_runtime_driver_probe` passed.
+- Historical migration-probe wave:
+  - earlier handoff/replay drift probes passed before those migration-only tests were retired.
+
+Natural-shape restoration plan (post-wrapper cleanup, 2026-04-03):
+
+- Context:
+  - legacy Fortran tail fallback has been removed from the default `cpp/ab` path.
+  - generic tail dispatch wrapper has been eliminated; the remaining tail surface is now
+    explicit helper-based continuation for:
+    - `spg_post_nonterminal`
+    - `tn_post_nonterminal`
+    - `tn_no_free_variables`
+- Next migration goal:
+  - stop treating those cases as "tail reasons" and absorb them back into the regular
+    `gencan` main-loop control flow, matching the original Fortran driver shape more closely.
+  - replace the current "step -> reason -> continuation helper" shape with explicit
+    "step -> post-check -> next phase" transitions inside the bridge.
+- Planned execution order:
+  - 1. introduce a thin explicit next-phase state in the bridge loop.
+    - candidate phases:
+      - `enter_spg`
+      - `enter_tn`
+      - `post_spg`
+      - `post_tn`
+      - `stop`
+    - this state is a temporary migration aid and should replace `fallback_reason`,
+      not become a permanent second control plane.
+  - 2. absorb `spg_post_nonterminal` first.
+    - keep all existing bookkeeping (`iter/fcnt/gcnt`, `progress_*`, `lastgpns`) in
+      their current locations.
+    - only change the control-flow destination so post-SPG nonterminal continuation
+      becomes a normal next-phase transition instead of a helper handoff.
+  - 3. absorb `tn_post_nonterminal`.
+    - keep TN replay / blocked-tail logic semantically frozen at first.
+    - move the decision of "continue with TN / continue with SPG / stop" into the
+      bridge's explicit post-TN phase.
+  - 4. absorb `tn_no_free_variables`.
+    - reclassify it as a normal post-TN branch rather than a standalone tail reason.
+    - decide its next state explicitly in-bridge instead of routing through a helper.
+  - 5. remove the dedicated continuation helpers once the three branches above are
+    encoded directly in the main loop.
+- Freezing rules for the first semantic wave:
+  - do not simplify replay, blocked-tail, or shadow logic at the same time as moving it.
+  - move control flow first; simplify implementation only after parity is re-established.
+  - treat drift in counters as a blocker even when final `f/x/inform` still match.
+- Primary parity checks during this phase:
+  - `inform`
+  - final `f/x/g`
+  - counters:
+    - `iter`
+    - `fcnt`
+    - `gcnt`
+    - `spgiter`
+    - `tniter`
+  - progress history:
+    - `progress_fprev`
+    - `progress_bestprog`
+    - `progress_itnfp`
+  - `lastgpns`
+- Expected completion condition:
+  - no `fallback_reason` variable remains in the main bridge path.
+  - no `continue_spg_post_nonterminal_cpp(...)` helper remains.
+  - no `continue_tn_tail_reason_cpp(...)` helper remains.
+  - SPG/TN/post-step control flow is once again represented directly inside the bridge
+    loop, close to the natural shape of the original Fortran driver.
